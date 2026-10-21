@@ -1,5 +1,34 @@
 # Hub DBM: entrega
 
+## Versão 6.1: outro evento e aniversário no calendário
+
+**Outro evento:** para o que não é reunião nem treinamento (confraternização, visita técnica, palestra, ação de extensão). Tem título, datas, horário, local, participantes da equipe e externos, descrição e anexos (fotos e documentos). Pode ser cancelado e entra no relatório Agenda da equipe, contando qualquer arquivo anexado como registro. Cor roxa no calendário.
+
+**Aniversário:** cor rosa, aparece todos os anos no mesmo dia, no calendário, na tela Início e no Resumo do dia.
+- O formulário pede só dia e mês. O ano de nascimento não é coletado nem guardado (no banco a data fica com o ano 2000 apenas como referência).
+- O servidor lança e corrige o próprio aniversário. O administrador lança o de qualquer servidor e também o de pessoas de fora da equipe, informando o nome.
+- Cada pessoa tem um aniversário só: o sistema recusa lançar de novo.
+- Quem nasceu em 29/02 aparece em 28/02 nos anos que não são bissextos.
+
+**Correção:** datas que não existem (31/11, 30/02) passam a ser recusadas pelo servidor em todo o sistema. Antes a validação aceitava e a data virava o dia seguinte.
+
+| Arquivo | Situação |
+|---|---|
+| `api/eventos.js` | alterado (novos tipos, regras do aniversário) |
+| `lib/comum.js` | alterado (atualiza a regra de tipos do banco sozinho; validação de data) |
+| `db/migracao_005_outros_tipos.sql` | novo (mesma atualização, para rodar manualmente se preferir) |
+| `js/calendario.js`, `js/relatorios.js`, `index.html` | alterados |
+
+Publicação: substitua os arquivos (ou aplique `hub-dbm-v6.1.patch` com `git am --keep-cr` sobre a v6) e faça o push. O banco é atualizado na primeira requisição; não há variável nova.
+
+Como testar:
+1. Entre como servidor, clique em Novo evento, escolha Aniversário, informe dia e mês e salve. O aniversário aparece no calendário, na tela Início (se for nesta semana) e repete no ano seguinte.
+2. Tente lançar o aniversário de novo: o sistema recusa.
+3. Como administrador, lance o aniversário de "Pessoa de fora da equipe" informando o nome.
+4. Lance um Outro evento com fotos: os arquivos aparecem em "Fotos e documentos".
+
+---
+
 ## Versão 6: tela Início e bloqueio de duplicados
 
 **Tela Início** (primeira tela ao entrar, item "Início" no topo do menu):

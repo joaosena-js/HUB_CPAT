@@ -63,12 +63,12 @@ function rgQuadros() {
     const ga = grupo([...new Set([...atR, ...atA, ...atF])], x => x.atendente);
     Q.push({ k: 'atendente', t: 'Atendimentos por atendente', h: ['Atendente', 'Registrados', 'Finalizados no período', 'Em aberto no fim', 'Tempo médio até finalizar (dias)'], r: Object.entries(ga).map(([k, l]) => { const fz = atF.filter(x => (x.atendente || '(não informado)') == k); return [k, l.filter(x => em(x.data, a, b)).length, fz.length, l.filter(x => aAberto(x, b)).length, media(fz.map(x => dDias(x.data, x.data_finalizacao)))] }).sort((x, y) => y[1] - x[1]), bar: 1, vazio: 'Nenhum atendimento no período.' });
     Q.push({ k: 'orgat', t: 'Órgãos com mais atendimentos', h: ['Órgão', 'Registrados', 'Orientação', 'Suporte operacional'], r: Object.entries(grupo(atR, x => x.orgao)).map(([k, l]) => [k, l.length, l.filter(x => x.categoria == 'Orientação').length, l.filter(x => x.categoria == 'Suporte operacional').length]).sort((x, y) => y[1] - x[1]), bar: 1, lim: 10, vazio: 'Nenhum atendimento registrado no período.' });
-    // Agenda da equipe: reuniões e treinamentos encerrados no período (não cancelados) e o registro anexado de cada um
+    // Agenda da equipe: reuniões, treinamentos e outros eventos encerrados no período (não cancelados) e o registro anexado de cada um
     const evr = EV.filter(e => !evPess(e) && em(e.fim, a, b)), lin = t => {
-        const l = evr.filter(e => e.tipo == t), ok = l.filter(e => !e.cancelado && e.fim <= TS()), c = ok.filter(e => (e.anexos || {})[t == 'Reunião' ? 'ATA' : 'Lista de presença']).length;
+        const l = evr.filter(e => e.tipo == t), ok = l.filter(e => !e.cancelado && e.fim <= TS()), c = ok.filter(e => t == 'Outro evento' ? Object.keys(e.anexos || {}).length : (e.anexos || {})[t == 'Reunião' ? 'ATA' : 'Lista de presença']).length;
         return [t, ok.length, l.filter(e => e.cancelado).length, c, ok.length - c, ok.reduce((s, e) => s + e.participantes.length, 0), t == 'Treinamento' ? String(Math.round(ok.reduce((s, e) => s + (e.carga_horaria || 0), 0) * 10) / 10).replace('.', ',') : '—']
     };
-    Q.push({ k: 'agenda', t: 'Agenda da equipe', h: ['Tipo', 'Realizados', 'Cancelados', 'Com ATA ou lista', 'Sem registro', 'Participações', 'Horas de treinamento'], r: [lin('Reunião'), lin('Treinamento')], nota: 'Reuniões contam a ATA anexada; treinamentos contam a lista de presença. Participações: soma dos servidores marcados em cada evento.' });
+    Q.push({ k: 'agenda', t: 'Agenda da equipe', h: ['Tipo', 'Realizados', 'Cancelados', 'Com ATA ou lista', 'Sem registro', 'Participações', 'Horas de treinamento'], r: [lin('Reunião'), lin('Treinamento'), lin('Outro evento')], nota: 'Reuniões contam a ATA anexada; treinamentos, a lista de presença; outros eventos, qualquer arquivo anexado. Participações: soma dos servidores marcados em cada evento.' });
     return { P, Q, res, tm: media(atF.map(x => dDias(x.data, x.data_finalizacao))) };
 }
 

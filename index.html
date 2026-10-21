@@ -22,6 +22,10 @@
             --wn2: #fef3c7;
             --er: #dc2626;
             --er2: #fee2e2;
+            --vi: #7c3aed;
+            --vi2: #ede9fe;
+            --pk: #db2777;
+            --pk2: #fce7f3;
             --sh: 0 1px 2px rgba(15, 23, 42, .06), 0 4px 14px rgba(15, 23, 42, .05);
             --sbt: #cbd5e1
         }
@@ -38,6 +42,10 @@
             --ok2: #12351f;
             --wn2: #3a2c0b;
             --er2: #3d1414;
+            --vi: #a78bfa;
+            --vi2: #2a1d4d;
+            --pk: #f472b6;
+            --pk2: #45142e;
             --sh: 0 1px 2px rgba(0, 0, 0, .4);
             --sbt: #334155
         }
@@ -1351,12 +1359,24 @@
             --b: var(--bg)
         }
 
+        .ctO {
+            --a: var(--vi);
+            --b: var(--vi2)
+        }
+
+        .ctN {
+            --a: var(--pk);
+            --b: var(--pk2)
+        }
+
         .cev,
         .bd.ctR,
         .bd.ctT,
+        .bd.ctO,
         .bd.ctF,
         .bd.ctA,
-        .bd.ctH {
+        .bd.ctH,
+        .bd.ctN {
             background: var(--b);
             color: var(--a)
         }

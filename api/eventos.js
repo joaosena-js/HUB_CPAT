@@ -1,12 +1,14 @@
 const crypto = require('crypto');
 const { Erro, ehData, txt, iniciar, usuarioDaSessao, semSessao, tratarErro } = require('../lib/comum');
 
-const FERIADO = 'Feriado ou ponto facultativo';
-const TIPOS = ['Reunião', 'Treinamento', 'Férias', 'Agenda do servidor', FERIADO];
+const FERIADO = 'Feriado ou ponto facultativo', ANIVERSARIO = 'Aniversário';
+const TIPOS = ['Reunião', 'Treinamento', 'Outro evento', 'Férias', 'Agenda do servidor', FERIADO, ANIVERSARIO];
 const PESSOAIS = ['Férias', 'Agenda do servidor'];
 const CLASSES = ['Feriado nacional', 'Feriado estadual', 'Feriado municipal', 'Ponto facultativo'];
 // Grupo do tipo: um evento não muda de grupo ao ser editado
-const grupo = t => PESSOAIS.includes(t) ? 'P' : t === FERIADO ? 'H' : 'E';
+const grupo = t => PESSOAIS.includes(t) ? 'P' : t === FERIADO ? 'H' : t === ANIVERSARIO ? 'N' : 'E';
+// Aniversário guarda só dia e mês: o ano fica fixo em 2000 (bissexto, aceita 29/02) e o calendário repete a data todo ano
+const ANO_ANIV = '2000';
 const ROTULOS = ['Ausente', 'Compromisso pessoal']; // o que a equipe vê na agenda do servidor
 const CATEGORIAS = ['Foto', 'ATA', 'Lista de presença', 'Outro documento'];
 const ARQUIVOS = { 'application/pdf': ['pdf'], 'image/jpeg': ['jpg', 'jpeg'], 'image/png': ['png'] };
@@ -40,8 +42,8 @@ const consultar = (sql, id) => sql`select e.id, e.tipo, e.titulo, to_char(e.inic
   where ${id}::int = 0 or e.id = ${id}::int
   order by e.inicio, e.hora_inicio nulls first, e.id`;
 
-// Feriado vale para toda a equipe: só o administrador lança, altera e exclui
-const podeEditar = (e, me) => me.perfil === 'admin' || (e.tipo !== FERIADO && (e.criado_por === me.id || (PESSOAIS.includes(e.tipo) && e.servidor_id === me.id)));
+// Feriado vale para toda a equipe: só o administrador lança, altera e exclui. Férias, agenda e aniversário: também o próprio servidor.
+const podeEditar = (e, me) => me.perfil === 'admin' || (e.tipo !== FERIADO && (e.criado_por === me.id || ((PESSOAIS.includes(e.tipo) || e.tipo === ANIVERSARIO) && e.servidor_id === me.id)));
 // Motivo da agenda do servidor: só o próprio servidor, quem lançou e o administrador veem
 const veMotivo = (e, me) => me.perfil === 'admin' || e.servidor_id === me.id || e.criado_por === me.id;
 const publico = (e, me) => e.tipo === 'Agenda do servidor' && !veMotivo(e, me) ? { ...e, motivo: '', reservado: true } : e;
@@ -56,6 +58,7 @@ function validar(item, me) {
     motivo: txt(item.motivo, 500, 'Motivo'), cancelado: !!item.cancelado, classificacao: String(item.classificacao || ''),
     participantes: [...new Set((Array.isArray(item.participantes) ? item.participantes : []).map(Number).filter(n => Number.isInteger(n) && n > 0))],
   };
+  if (tipo === ANIVERSARIO) { e.inicio = e.fim = ANO_ANIV + e.inicio.slice(4); if (!ehData(e.inicio)) throw new Erro('Informe um dia e mês válidos') }
   if (!ehData(e.inicio) || !ehData(e.fim)) throw new Erro('Informe datas válidas de início e fim');
   if (e.fim < e.inicio) throw new Erro('A data de fim não pode ser anterior à de início');
   if ((Date.parse(e.fim) - Date.parse(e.inicio)) / 864e5 > 366) throw new Erro('O período não pode passar de um ano');
@@ -63,6 +66,13 @@ function validar(item, me) {
   if (e.hora_fim && !e.hora_inicio) throw new Erro('Informe a hora de início');
   if (e.hora_fim && e.inicio === e.fim && e.hora_fim <= e.hora_inicio) throw new Erro('A hora de fim deve ser depois da hora de início');
   if (e.participantes.length > 100) throw new Erro('Limite de 100 participantes');
+  if (tipo === ANIVERSARIO) {
+    if (e.servidor_id) { if (me.perfil !== 'admin' && e.servidor_id !== me.id) throw new Erro('Você só pode lançar o seu próprio aniversário', 403) }
+    else if (me.perfil !== 'admin') throw new Erro('Somente o administrador lança aniversário de pessoa de fora da equipe', 403);
+    else if (e.titulo.length < 3) throw new Erro('Informe o nome do aniversariante');
+    Object.assign(e, { hora_inicio: '', hora_fim: '', local: '', pauta: '', participantes_externos: '', participantes: [], motivo: '', cancelado: false, classificacao: '' });
+    return e;
+  }
   if (tipo === FERIADO) {
     if (me.perfil !== 'admin') throw new Erro('Somente o administrador lança feriados e pontos facultativos', 403);
     if (e.titulo.length < 3) throw new Erro('Informe o nome do feriado ou ponto facultativo');
@@ -119,14 +129,19 @@ module.exports = async (req, res) => {
     if (b.op === 'save') {
       const item = b.item || {}, id = +item.id || 0, e = validar(item, me);
       const ids = [...e.participantes, ...(e.servidor_id ? [e.servidor_id] : [])];
-      const ok = ids.length ? await sql`select id from usuarios where id = any(${ids}::int[])` : [];
+      const ok = ids.length ? await sql`select id, nome from usuarios where id = any(${ids}::int[])` : [];
       if (ok.length !== ids.length) throw new Erro('Participante ou servidor não encontrado');
+      if (e.tipo === ANIVERSARIO && e.servidor_id) e.titulo = ok.find(u => u.id === e.servidor_id).nome;
       // Evita lançar o mesmo evento duas vezes (mesmo tipo, título, datas e hora; nas férias, qualquer sobreposição do mesmo servidor)
       if (!e.cancelado) {
-        const dup = e.tipo === 'Férias'
+        const dup = e.tipo === ANIVERSARIO
+          ? await sql`select id, titulo, to_char(inicio, 'DD/MM') as de, to_char(fim, 'DD/MM') as ate from eventos where id <> ${id} and tipo = ${ANIVERSARIO}
+              and (${e.servidor_id || 0}::int <> 0 and servidor_id = ${e.servidor_id || 0}::int or ${e.servidor_id || 0}::int = 0 and servidor_id is null and lower(trim(titulo)) = lower(trim(${e.titulo}))) limit 1`
+          : e.tipo === 'Férias'
           ? await sql`select id, to_char(inicio, 'DD/MM/YYYY') as de, to_char(fim, 'DD/MM/YYYY') as ate from eventos where id <> ${id} and tipo = 'Férias' and servidor_id = ${e.servidor_id} and inicio <= ${e.fim} and fim >= ${e.inicio} limit 1`
           : await sql`select id, to_char(inicio, 'DD/MM/YYYY') as de, to_char(fim, 'DD/MM/YYYY') as ate from eventos where id <> ${id} and not cancelado and tipo = ${e.tipo} and inicio = ${e.inicio} and fim = ${e.fim}
               and coalesce(servidor_id, 0) = ${e.servidor_id || 0} and lower(trim(titulo)) = lower(trim(${e.titulo})) and coalesce(to_char(hora_inicio, 'HH24:MI'), '') = ${e.hora_inicio || ''} limit 1`;
+        if (dup[0] && e.tipo === ANIVERSARIO) throw new Erro(`O aniversário de ${dup[0].titulo} já está lançado (${dup[0].de}). Abra o existente para alterar.`, 409);
         if (dup[0]) throw new Erro(e.tipo === 'Férias' ? `Já existem férias lançadas para este servidor de ${dup[0].de} a ${dup[0].ate}. Altere o lançamento existente.` : `Este evento já está lançado no calendário (${dup[0].de === dup[0].ate ? dup[0].de : dup[0].de + ' a ' + dup[0].ate}). Abra o existente para alterar.`, 409);
       }
       let novo = id;
@@ -166,7 +181,7 @@ module.exports = async (req, res) => {
     // (2) o navegador envia o arquivo direto ao Blob; (3) o servidor confere o arquivo recebido e só então o anexo aparece.
     if (b.op === 'anexo_preparar') {
       const e = await evento(b.id); exigeEdicao(e);
-      if (grupo(e.tipo) !== 'E') throw new Erro('Anexos são usados somente em reuniões e treinamentos');
+      if (grupo(e.tipo) !== 'E') throw new Erro('Anexos são usados somente em reuniões, treinamentos e outros eventos');
       const categoria = String(b.categoria || ''), nome = txt(b.nome, 200, 'Nome do arquivo').replace(/[\u0000-\u001f]/g, ''), tipo = String(b.tipo || ''), tamanho = +b.tamanho || 0;
       const ext = (/\.([a-z0-9]+)$/i.exec(nome) || [])[1]?.toLowerCase();
       if (!CATEGORIAS.includes(categoria)) throw new Erro('Escolha o tipo do anexo');
