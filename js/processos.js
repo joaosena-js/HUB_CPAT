@@ -128,11 +128,15 @@ function form() {
     $('#fm').innerHTML = f('numero', 'Nº do processo', 'text', 'w') + `<label class="w">Descrição<textarea id="f_descricao" rows="2" maxlength="4000" placeholder="Resumo do que trata o processo">${esc(cur.descricao)}</textarea></label><label>Tipo<select id="f_tipo" onchange="rt()">${TIPOS.map(x => `<option ${T == x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>` + f('tram', 'Data de Tramitação', 'date') + ex + f('doc', 'Nº do documento') + f('datadoc', 'Data do documento', 'date') + s('status', 'Status', L.status) + s('resp', 'Responsável', L.resp) + f('setor', 'Setor atual (vazio = DBM)', 'text', '', 'dl_o') + f('concl', 'Data de conclusão', 'date') + `<label class="w">Observação<textarea id="f_obs" rows="2" maxlength="4000">${esc(cur.obs)}</textarea></label>` + dl('dl_o', L.orgaos) + dl('dl_a', L.assuntos)
 }
 async function put(r) { const j = await api({ op: 'save', item: r }); r.id = j.id; const i = D.findIndex(x => x.id == r.id); i < 0 ? D.push(r) : D[i] = r }
+// Nº comparado sem pontos, barras, traços e espaços (mesma regra do servidor)
+const chNum = n => String(n || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
 function sv() {
     collect(); const r = { ...cur }; if (!r.numero || !r.tram) return alert('Informe o nº do processo e a data de entrada.');
     r.itens = r.itens === '' ? '' : +r.itens; if (r.tipo != 'Transferência') r.recebedor = ''; if (r.tipo == 'Caixa do setor') r.itens = ''; r.status = r.status || L.status[0] || '';
     const o = D.find(x => x.id == r.id); if (done(r) && !r.concl) r.concl = TS(); if (!done(r) && o && o.status != r.status) r.concl = ''; if (!o || o.status != r.status || o.resp != r.resp) r.mov = TS();
-    run(async () => { await put(r); $('#dg').close(); draw() })
+    const x = D.find(p => p.id != r.id && chNum(p.numero) == chNum(r.numero));
+    if (x && (!o || chNum(o.numero) != chNum(r.numero))) { alert(`Já existe o processo nº ${x.numero} (${x.tipo}${x.orgao ? ', ' + x.orgao : ''}). Ele será aberto para você conferir.`); $('#dg').close(); det(x.id); return }
+    umaVez(async () => { await put(r); $('#dg').close(); draw() })
 }
 function fin(id) { const r = { ...D.find(x => x.id == id) }; r.status = L.status.find(s => s.startsWith('CONCLU')) || 'CONCLUÍDO – DBM'; r.concl = r.mov = TS(); run(async () => { await put(r); $('#dg').close(); $('#dd').close(); draw() }) }
 function rm(id) { if (confirm('Excluir este processo?')) run(async () => { await api({ op: 'del', id }); D = D.filter(x => x.id != id); $('#dg').close(); $('#dd').close(); draw() }) }

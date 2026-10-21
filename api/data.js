@@ -5,6 +5,12 @@ const CAMPOS = ['numero', 'descricao', 'tipo', 'tram', 'orgao', 'recebedor', 'de
 const DATAS = ['tram', 'datadoc', 'concl', 'mov'];
 const LISTAS = ['status', 'resp', 'orgaos', 'motivos', 'assuntos'], LISTAS_OPCIONAIS = ['assuntos_at'];
 const MAX_FALHAS = 5;
+// Nº do processo comparado sem pontos, barras, traços e espaços: "001.2026/12" e "0012026 12" são o mesmo processo
+const chave = n => String(n || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+const existentes = (sql, chaves, ignorarId = 0, ignorarTipos = []) => sql`select id, data->>'numero' as numero, data->>'tipo' as tipo, data->>'orgao' as orgao from processos
+  where id <> ${ignorarId} and coalesce(data->>'tipo', '') <> all(${ignorarTipos}::text[]) and upper(regexp_replace(coalesce(data->>'numero', ''), '[^0-9A-Za-z]', '', 'g')) = any(${chaves}::text[]) order by id`;
+const repetidosNoLote = items => { const v = new Set(), r = new Set(); items.forEach(d => { const k = chave(d.numero); v.has(k) ? r.add(d.numero) : v.add(k) }); return [...r] };
+const lista = l => l.slice(0, 10).join(', ') + (l.length > 10 ? ` e mais ${l.length - 10}` : '');
 
 function limparProcesso(item) {
   const d = {};
@@ -19,7 +25,7 @@ function limparProcesso(item) {
   return d;
 }
 function validarProcesso(d, exigeEntrada) {
-  if (!d.numero) throw new Erro('Informe o nº do processo');
+  if (!chave(d.numero)) throw new Erro('Informe o nº do processo');
   if (!TIPOS.includes(d.tipo)) throw new Erro('Tipo de processo inválido');
   if (exigeEntrada && !d.tram) throw new Erro('Informe a data de entrada');
   return d;
@@ -77,6 +83,11 @@ module.exports = async (req, res) => {
       let antigo = null;
       if (id) { antigo = (await sql`select data from processos where id = ${id}`)[0]; if (!antigo) throw new Erro('Processo não encontrado', 404); antigo = antigo.data }
       const novo = validarProcesso({ ...(antigo || {}), ...d }, true);
+      // Bloqueia nº repetido ao cadastrar ou ao trocar o número (repetições antigas não impedem editar outros campos)
+      if (!antigo || chave(antigo.numero) !== chave(novo.numero)) {
+        const x = (await existentes(sql, [chave(novo.numero)], id))[0];
+        if (x) throw new Erro(`Já existe o processo nº ${x.numero} (${x.tipo || 'sem tipo'}${x.orgao ? ', ' + x.orgao : ''}). Abra o processo existente em vez de cadastrar de novo.`, 409);
+      }
       let pid = id;
       if (id) await sql`update processos set data = ${JSON.stringify(novo)}::jsonb where id = ${id}`;
       else pid = (await sql`insert into processos(data) values (${JSON.stringify(novo)}::jsonb) returning id`)[0].id;
@@ -103,6 +114,8 @@ module.exports = async (req, res) => {
     if (b.op === 'bulk') {
       soAdmin();
       const items = (b.items || []).map(({ id, ...d }) => validarProcesso(limparProcesso(d)));
+      const rep = repetidosNoLote(items);
+      if (rep.length) throw new Erro(`Importação recusada: nº repetido na planilha (${lista(rep)}). Corrija e importe de novo.`, 409);
       await sql`delete from processos`;
       await sql`insert into processos(data) select value from jsonb_array_elements(${JSON.stringify(items)}::jsonb)`;
       await registrar(me, 'importacao', `Substituição completa: ${items.length} processo(s)`);
@@ -114,6 +127,10 @@ module.exports = async (req, res) => {
       const dels = (b.deltipos || []).filter(t => TIPOS.includes(t));
       const ups = (b.updates || []).map(u => ({ id: +u.id, data: validarProcesso(limparProcesso(u.data || {})) }));
       const news = (b.news || []).map(d => validarProcesso(limparProcesso(d)));
+      const rep = repetidosNoLote(news);
+      if (rep.length) throw new Erro(`Importação recusada: nº repetido na planilha (${lista(rep)}). Corrija e importe de novo.`, 409);
+      const ja = news.length ? await existentes(sql, news.map(d => chave(d.numero)), 0, dels) : [];
+      if (ja.length) throw new Erro(`Importação recusada: ${ja.length} nº já cadastrado(s) em outro processo (${lista([...new Set(ja.map(x => x.numero + ' - ' + x.tipo))])}). Nenhum dado foi alterado.`, 409);
       if (dels.length) await sql`delete from processos where data->>'tipo' in (select jsonb_array_elements_text(${JSON.stringify(dels)}::jsonb))`;
       if (ups.length) await sql`update processos p set data = v.data from jsonb_to_recordset(${JSON.stringify(ups)}::jsonb) as v(id int, data jsonb) where p.id = v.id`;
       if (news.length) await sql`insert into processos(data) select value from jsonb_array_elements(${JSON.stringify(news)}::jsonb)`;

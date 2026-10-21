@@ -121,6 +121,14 @@ module.exports = async (req, res) => {
       const ids = [...e.participantes, ...(e.servidor_id ? [e.servidor_id] : [])];
       const ok = ids.length ? await sql`select id from usuarios where id = any(${ids}::int[])` : [];
       if (ok.length !== ids.length) throw new Erro('Participante ou servidor não encontrado');
+      // Evita lançar o mesmo evento duas vezes (mesmo tipo, título, datas e hora; nas férias, qualquer sobreposição do mesmo servidor)
+      if (!e.cancelado) {
+        const dup = e.tipo === 'Férias'
+          ? await sql`select id, to_char(inicio, 'DD/MM/YYYY') as de, to_char(fim, 'DD/MM/YYYY') as ate from eventos where id <> ${id} and tipo = 'Férias' and servidor_id = ${e.servidor_id} and inicio <= ${e.fim} and fim >= ${e.inicio} limit 1`
+          : await sql`select id, to_char(inicio, 'DD/MM/YYYY') as de, to_char(fim, 'DD/MM/YYYY') as ate from eventos where id <> ${id} and not cancelado and tipo = ${e.tipo} and inicio = ${e.inicio} and fim = ${e.fim}
+              and coalesce(servidor_id, 0) = ${e.servidor_id || 0} and lower(trim(titulo)) = lower(trim(${e.titulo})) and coalesce(to_char(hora_inicio, 'HH24:MI'), '') = ${e.hora_inicio || ''} limit 1`;
+        if (dup[0]) throw new Erro(e.tipo === 'Férias' ? `Já existem férias lançadas para este servidor de ${dup[0].de} a ${dup[0].ate}. Altere o lançamento existente.` : `Este evento já está lançado no calendário (${dup[0].de === dup[0].ate ? dup[0].de : dup[0].de + ' a ' + dup[0].ate}). Abra o existente para alterar.`, 409);
+      }
       let novo = id;
       if (id) {
         const old = await evento(id); exigeEdicao(old);

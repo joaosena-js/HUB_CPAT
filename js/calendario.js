@@ -28,8 +28,9 @@ function evLoad(silencioso) {
     return EVP || (EVP = (async () => {
         try {
             const j = await api({ op: 'list' }, '/api/eventos'), sg = JSON.stringify(j); EVU = j.usuarios; EV_ANX = j.anexos_ok;
-            if (sg === EVL) return; EVL = sg; EV = j.eventos;
-            if ((tab == 'cal' || tab == 'relg') && (!silencioso || (!$('#dg').open && !$('#dd').open && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)))) draw()
+            if (sg === EVL) return; EV = j.eventos; const vis = ['cal', 'relg', 'home'].includes(tab);
+            if (vis && silencioso && !livre()) return;
+            EVL = sg; if (vis) draw()
         } catch (e) { if (!silencioso) alert('Erro: ' + e.message) } finally { EVP = null }
     })())
 }
@@ -55,7 +56,7 @@ function caMes() {
     }
     return `<div class="cgrid">${EV_DS.map(x => `<div class="cds">${x}</div>`).join('')}${c}</div>`
 }
-const evLinha = e => { const [st, sc] = evSit(e); return `<div class="pi ce ct${EV_LETRA[e.tipo]}" onclick="evDet(${e.id})"><div class="pd"><div>${e.hora_inicio || 'Dia'}<small>${e.hora_inicio ? (e.hora_fim ? 'até ' + e.hora_fim : '') : 'inteiro'}</small></div></div><div class="pm"><b>${esc(evNome(e))}</b><span>${evTipoBd(e)} <span class="bd ${sc}">${st}</span></span><span>${esc(evSemAnexo(e) ? evPer(e) : [e.local, e.inicio != e.fim ? evPer(e) : ''].filter(Boolean).join(' · '))}</span></div></div>` };
+const evLinha = e => { const [st, sc] = evSit(e); return `<div class="pi ce ct${EV_LETRA[e.tipo]}" onclick="evDet(${e.id})"><div class="pd"><div>${e.hora_inicio || 'Dia'}<small>${e.hora_inicio ? (e.hora_fim ? 'até ' + e.hora_fim : '') : 'inteiro'}</small></div></div><div class="pm"><b>${esc(evNome(e))}</b><div class="evb">${evTipoBd(e)}<span class="bd ${sc}">${st}</span></div><span>${esc(evSemAnexo(e) ? evPer(e) : [e.local, e.inicio != e.fim ? evPer(e) : ''].filter(Boolean).join(' · '))}</span></div></div>` };
 function caSem(s) {
     const l = evFiltro(); let c = '';
     for (let i = 0; i < 7; i++) { const d = addDias(s, i), es = evNoDia(l, d); c += `<div class="csd${d == TS() ? ' hj' : ''}"><h4>${EV_DS[i]}, ${fmt(d).slice(0, 5)}${d == TS() ? ' · hoje' : ''}<button class="btn s" onclick="evEd(0,'${d}')" title="Novo evento neste dia">${ic('plus', 14)}</button></h4>${es.map(evLinha).join('') || '<p class="nt">Sem eventos.</p>'}</div>` }
@@ -85,7 +86,7 @@ function evDet(id, avisos) {
         + `<div class="dl">${f('Período', evPer(e))}${e.tipo == EV_FER ? f('Classificação', e.classificacao) : f('Horário', evHora(e))}${e.tipo == EV_FER ? '' : evPess(e) ? f('Servidor', e.servidor) : local + f('Participantes da equipe', evNomes(e.participantes)) + f('Participantes externos', e.participantes_externos) + (e.tipo == 'Treinamento' ? f('Carga horária', e.carga_horaria ? String(e.carga_horaria).replace('.', ',') + ' h' : '') : '')}${f('Lançado por', e.criado_por_nome)}`
         + (e.tipo == 'Agenda do servidor' && !e.reservado ? `<div style="grid-column:1/-1">Motivo (reservado)<b style="font-weight:500">${esc(e.motivo) || '—'}</b><small>Visível somente para o servidor e para o administrador.</small></div>` : '') + `</div>`
         + (evSemAnexo(e) ? '' : `<h3 class="kt" style="margin:0 20px 8px">${ic('clip', 16)} Foto, ATA e lista de presença</h3>`
-            + (pode ? EV_ANX ? `<form class="tb" style="margin:0 20px 6px" onsubmit="event.preventDefault();evUp(${e.id})"><select id="ev_cat" aria-label="Tipo do anexo">${EV_CATS.map(c => `<option ${c == (e.tipo == 'Treinamento' ? 'Lista de presença' : 'ATA') ? 'selected' : ''}>${c}</option>`).join('')}</select><input type="file" id="ev_arq" accept=".pdf,.jpg,.jpeg,.png" style="flex:1;min-width:200px" aria-label="Arquivo"><button class="btn p s" id="ev_env">${ic('up', 14)} Enviar</button></form><p class="nt" id="ev_st" style="margin:0 20px 10px">PDF, JPG ou PNG, até 10 MB.</p>`
+            + (pode ? EV_ANX ? `<form class="tb" style="margin:0 20px 6px" onsubmit="event.preventDefault();evUp(${e.id})"><select id="ev_cat" aria-label="Tipo do anexo">${EV_CATS.map(c => `<option ${c == (e.tipo == 'Treinamento' ? 'Lista de presença' : 'ATA') ? 'selected' : ''}>${c}</option>`).join('')}</select><input type="file" id="ev_arq" accept=".pdf,.jpg,.jpeg,.png" multiple style="flex:1;min-width:200px" aria-label="Arquivos"><button class="btn p s" id="ev_env">${ic('up', 14)} Enviar</button></form><p class="nt" id="ev_st" style="margin:0 20px 10px">PDF, JPG ou PNG, até 10 MB cada. Dá para escolher vários de uma vez.</p>`
                 : `<p class="nt" style="margin:0 20px 10px">O envio de arquivos será liberado quando o armazenamento de anexos for configurado na Vercel.</p>` : '')
             + `<div class="ax" id="ev_ax"><p class="nt">Carregando anexos…</p></div>`)
         + `<div class="ac">${pode ? `<button class="btn p" onclick="evEd(${e.id})">${ic('pen', 15)} Editar</button>` : `<span class="nt">${e.tipo == EV_FER ? 'Somente o administrador altera feriados e pontos facultativos.' : `Somente quem lançou o evento${evPess(e) ? ', o próprio servidor' : ''} ou o administrador pode alterá-lo.`}</span>`}<span class="sp"></span>${pode ? `<button class="btn d" onclick="evRm(${e.id})">${ic('trash', 15)} Excluir</button>` : ''}</div>`;
@@ -98,18 +99,24 @@ async function evAnexos(id) {
     el.innerHTML = a.length ? a.map(x => `<div><span class="bd ${x.categoria == 'ATA' || x.categoria == 'Lista de presença' ? 'g' : 'n'}">${esc(x.categoria)}</span><span class="axn"><b>${esc(x.nome)}</b><small>${evTam(x.tamanho)} · enviado por ${esc(x.enviado_por_nome)} em ${esc(x.enviado_em)}</small></span><button class="btn s" onclick="evAbrir(${x.id})" title="Abrir">${ic('eye', 15)}</button>${pode || (ME && x.enviado_por == ME.id) ? `<button class="btn s" onclick="evRmAnexo(${x.id},${id})" title="Remover">${ic('trash', 15)}</button>` : ''}</div>`).join('') : '<p class="nt">Nenhum arquivo anexado.</p>'
 }
 // Envio direto do navegador para o armazenamento, com link liberado pelo servidor; depois o servidor confere o arquivo recebido
+const evArqErro = f => !EV_ARQ[(f.name.split('.').pop() || '').toLowerCase()] ? f.name + ': envie somente PDF, JPG ou PNG.' : f.size > EV_MAX ? f.name + ': o arquivo passa de 10 MB.' : '';
+async function evEnviar(id, f, categoria) {
+    const j = await api({ op: 'anexo_preparar', id, categoria, nome: f.name, tipo: EV_ARQ[f.name.split('.').pop().toLowerCase()], tamanho: f.size }, '/api/eventos');
+    const r = await fetch(j.url, { method: 'PUT', headers: j.headers, body: f }).catch(() => null);
+    if (!r || !r.ok) throw new Error('o arquivo não foi enviado ao armazenamento' + (r ? ` (código ${r.status})` : '. Verifique a conexão.'));
+    await api({ op: 'anexo_confirmar', anexo_id: j.anexo_id }, '/api/eventos')
+}
+// l = lista de [arquivo, categoria]; envia um por vez e informa o andamento no detalhe do evento
+async function evEnviarVarios(id, l) {
+    const st = () => $('#ev_st'), erros = [];
+    for (let i = 0; i < l.length; i++) { if (st()) st().textContent = `Enviando ${l.length > 1 ? (i + 1) + ' de ' + l.length + ': ' : ''}${l[i][0].name}…`; try { await evEnviar(id, ...l[i]) } catch (e) { erros.push(l[i][0].name + ': ' + e.message) } }
+    if (st()) st().textContent = l.length - erros.length ? `${l.length - erros.length} arquivo(s) anexado(s).` : 'PDF, JPG ou PNG, até 10 MB.'; evAnexos(id); evLoad(1);
+    if (erros.length) alert('Não foi possível anexar:\n' + erros.join('\n'))
+}
 async function evUp(id) {
-    const f = $('#ev_arq').files[0], st = $('#ev_st'), bt = $('#ev_env'); if (!f) return alert('Escolha o arquivo.');
-    const tipo = EV_ARQ[(f.name.split('.').pop() || '').toLowerCase()];
-    if (!tipo) return alert('Envie somente arquivos PDF, JPG ou PNG.'); if (f.size > EV_MAX) return alert('O arquivo deve ter no máximo 10 MB.');
-    bt.disabled = true; st.textContent = 'Enviando ' + f.name + '…';
-    try {
-        const j = await api({ op: 'anexo_preparar', id, categoria: $('#ev_cat').value, nome: f.name, tipo, tamanho: f.size }, '/api/eventos');
-        const r = await fetch(j.url, { method: 'PUT', headers: j.headers, body: f }).catch(() => null);
-        if (!r || !r.ok) throw new Error('o arquivo não foi enviado ao armazenamento' + (r ? ` (código ${r.status})` : '. Verifique a conexão.'));
-        await api({ op: 'anexo_confirmar', anexo_id: j.anexo_id }, '/api/eventos');
-        st.textContent = 'Arquivo anexado.'; $('#ev_arq').value = ''; evAnexos(id); evLoad(1)
-    } catch (e) { st.textContent = 'PDF, JPG ou PNG, até 10 MB.'; alert('Erro: ' + e.message) } finally { bt.disabled = false }
+    const fs = [...$('#ev_arq').files], bt = $('#ev_env'); if (!fs.length) return alert('Escolha o arquivo.');
+    const er = fs.map(evArqErro).filter(Boolean); if (er.length) return alert(er.join('\n'));
+    bt.disabled = true; try { await evEnviarVarios(id, fs.map(f => [f, $('#ev_cat').value])); const a = $('#ev_arq'); if (a) a.value = '' } finally { bt.disabled = false }
 }
 // A janela é aberta antes da consulta para não ser barrada pelo bloqueador de pop-ups; o link vale por 5 minutos
 async function evAbrir(aid) {
@@ -140,6 +147,7 @@ function evEd(id, data) {
 <label class="w" data-t="RTH"><span id="e_pl">Pauta</span><textarea id="e_pauta" rows="3" maxlength="4000">${esc(e.pauta)}</textarea></label>
 <label class="w" data-t="A">Motivo (reservado)<textarea id="e_motivo" rows="2" maxlength="500" placeholder="Ex.: consulta, curso, assunto particular">${esc(e.motivo)}</textarea></label>
 <p class="nt w" data-t="A" style="margin:0">O motivo fica visível somente para você e para o administrador. A equipe vê apenas "Ausente" ou "Compromisso pessoal". Não informe diagnóstico nem detalhes de saúde.</p>
+<div class="w" data-t="RT"><span class="lb">Anexos (opcional)</span>${EV_ANX ? `<div class="evx"><label><span id="e_al">ATA</span><input type="file" id="e_ata" accept=".pdf,.jpg,.jpeg,.png"></label><label>Fotos<input type="file" id="e_fotos" accept=".jpg,.jpeg,.png" multiple></label></div><p class="nt" style="margin:4px 0 0">PDF, JPG ou PNG, até 10 MB cada. Os arquivos são enviados logo depois de salvar o evento.</p>` : '<p class="nt" style="margin:4px 0 0">O envio de ATA e fotos será liberado quando o armazenamento de anexos for configurado na Vercel.</p>'}</div>
 ${id ? `<label class="w ck" data-t="RT"><input type="checkbox" id="e_cancelado" ${e.cancelado ? 'checked' : ''}> Evento cancelado</label>` : ''}
 <div class="w" style="display:flex;gap:8px"><button class="btn p">${ic('ok', 15)} Salvar</button><button type="button" class="btn" onclick="${id ? `evDet(${id})` : `$('#dd').close()`}">Cancelar</button></div></form>`;
     evTipo(); if (!$('#dd').open) $('#dd').showModal(); $('#dd').scrollTop = 0
@@ -148,13 +156,16 @@ function evTipo() {
     const t = EV_LETRA[$('#e_tipo').value]; $('#evf').querySelectorAll('[data-t]').forEach(x => x.hidden = !x.dataset.t.includes(t));
     $('#e_titulo').required = $('#e_classificacao').required = false; $('#e_titulo').required = 'RTH'.includes(t); $('#e_classificacao').required = t == 'H';
     $('#e_pl').textContent = t == 'T' ? 'Conteúdo do treinamento' : t == 'H' ? 'Ato ou observação (opcional)' : 'Pauta'; $('#e_tl').textContent = t == 'H' ? 'Nome' : 'Título';
+    if ($('#e_al')) $('#e_al').textContent = t == 'T' ? 'Lista de presença' : 'ATA';
     $('#e_titulo').placeholder = t == 'H' ? 'Ex.: Proclamação da República' : 'Ex.: Reunião de alinhamento com a SEAD'; $('#e_pauta').placeholder = t == 'H' ? 'Ex.: Decreto que estabeleceu o ponto facultativo' : ''
 }
 function evSv(id) {
     const t = $('#e_tipo').value, g = k => ($('#e_' + k) ? $('#e_' + k).value : '').trim(), L_ = EV_LETRA[t];
     const b = { id, tipo: t, titulo: L_ == 'A' ? g('rotulo') : g('titulo'), inicio: g('inicio'), fim: g('fim'), hora_inicio: 'FH'.includes(L_) ? '' : g('hora_inicio'), hora_fim: 'FH'.includes(L_) ? '' : g('hora_fim'), classificacao: L_ == 'H' ? g('classificacao') : '', local: g('local'), pauta: g('pauta'), participantes_externos: g('participantes_externos'), carga_horaria: L_ == 'T' ? g('carga_horaria') : '', servidor_id: g('servidor_id'), motivo: L_ == 'A' ? g('motivo') : '', cancelado: !!($('#e_cancelado') && $('#e_cancelado').checked), participantes: [...document.querySelectorAll('#e_part input:checked')].map(x => +x.value) };
     if (b.fim < b.inicio) return alert('A data de fim não pode ser anterior à de início.');
-    run(async () => { const j = await api({ op: 'save', item: b }, '/api/eventos'); await evLoad(1); evDet(j.id, j.avisos); if (tab == 'cal') draw() })
+    const arq = 'RT'.includes(L_) && $('#e_ata') ? [...[...$('#e_ata').files].map(f => [f, L_ == 'T' ? 'Lista de presença' : 'ATA']), ...[...$('#e_fotos').files].map(f => [f, 'Foto'])] : [];
+    const er = arq.map(x => evArqErro(x[0])).filter(Boolean); if (er.length) return alert(er.join('\n'));
+    umaVez(async () => { const j = await api({ op: 'save', item: b }, '/api/eventos'); await evLoad(1); evDet(j.id, j.avisos); if (tab == 'cal') draw(); if (arq.length) await evEnviarVarios(j.id, arq) })
 }
 function evRm(id) {
     const e = EV.find(x => x.id == id), n = e ? Object.values(e.anexos || {}).reduce((s, x) => s + x, 0) : 0;

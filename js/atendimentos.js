@@ -21,8 +21,9 @@ function atLoad(silencioso) {
     return ATP || (ATP = (async () => {
         try {
             const j = await api({ op: 'list' }, '/api/atendimentos'), sg = JSON.stringify(j); ATU = j.atendentes;
-            if (sg === ATL) return; ATL = sg; AT = j.atendimentos;
-            if ((tab == 'aten' || tab == 'relg') && (!silencioso || (!$('#dg').open && !$('#dd').open && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)))) draw()
+            if (sg === ATL) return; AT = j.atendimentos; const vis = ['aten', 'relg', 'home'].includes(tab);
+            if (vis && silencioso && !livre()) return; // redesenha na próxima verificação, quando a tela estiver livre
+            ATL = sg; if (vis) draw()
         } catch (e) { if (!silencioso) alert('Erro: ' + e.message) } finally { ATP = null }
     })())
 }
@@ -89,7 +90,7 @@ function atSitMuda() { const f = $('#a_data_finalizacao'); if ($('#a_situacao').
 function atSv(id) {
     const g = k => $('#a_' + k).value.trim(), b = { id }; ['data', 'hora', 'canal', 'orgao', 'solicitante', 'contato', 'categoria', 'assunto', 'descricao', 'atendente_id', 'situacao', 'data_finalizacao', 'processo_numero'].forEach(k => b[k] = g(k));
     if (b.situacao == AT_FIM && !b.data_finalizacao) return alert('Informe a data de finalização.');
-    run(async () => { const j = await api({ op: 'save', item: b }, '/api/atendimentos'); await atLoad(1); atDet(j.id); if (tab == 'aten') draw() })
+    umaVez(async () => { const j = await api({ op: 'save', item: b }, '/api/atendimentos'); await atLoad(1); atDet(j.id); if (tab == 'aten') draw() })
 }
 function atFin(id) { const a = AT.find(x => x.id == id); if (!a) return; run(async () => { await api({ op: 'save', item: { ...a, situacao: AT_FIM, data_finalizacao: TS() } }, '/api/atendimentos'); await atLoad(1); atDet(id); if (tab == 'aten') draw() }) }
 function atRm(id) { if (confirm('Excluir este atendimento e o histórico dele?')) run(async () => { await api({ op: 'del', id }, '/api/atendimentos'); $('#dd').close(); await atLoad(1); if (tab == 'aten') draw() }) }

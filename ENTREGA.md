@@ -1,5 +1,42 @@
 # Hub DBM: entrega
 
+## Versão 6: tela Início e bloqueio de duplicados
+
+**Tela Início** (primeira tela ao entrar, item "Início" no topo do menu):
+- Saudação com a data e botões para cada módulo, com um número de apoio (processos em andamento por tipo, atendimentos em aberto, eventos de hoje). Usuários e Log aparece só para o administrador.
+- **Agenda da semana:** eventos de hoje até 6 dias à frente. Evento de vários dias (férias, por exemplo) aparece uma vez só.
+- **Meus processos em andamento:** os 5 mais antigos do responsável vinculado ao usuário, com botão "Ver todos" quando houver mais. Se o usuário não estiver vinculado a um responsável, a tela orienta a pedir o vínculo ao administrador.
+- **Meus atendimentos em aberto:** os 5 mais antigos do usuário.
+- Para o administrador, aviso quando já existem números de processo repetidos no banco (cadastrados antes desta versão), com a lista para conferir e corrigir.
+
+**Pop-up de entrada** passa a se chamar "Resumo do dia" e mostra também a agenda de hoje e de amanhã da equipe, além dos processos e atendimentos do usuário.
+
+**Processos duplicados:** o servidor recusa cadastrar, ou trocar para, um nº que já existe. A comparação ignora pontos, barras, traços e espaços, então "01.01.0227/2025-93" e "01 01 0227 2025 93" contam como o mesmo número. Na tela, o sistema avisa e abre o processo existente. Na importação, a planilha é recusada inteira, sem alterar nada, se tiver nº repetido entre as linhas ou nº já cadastrado (exceto quando a opção escolhida substitui aquele tipo). Repetições antigas não impedem editar outros campos desses processos.
+
+**Eventos duplicados:** o servidor recusa o mesmo evento lançado de novo (mesmo tipo, título, datas e hora de início; maiúsculas e espaços não fazem diferença) e férias do mesmo servidor que se sobrepõem a férias já lançadas. Eventos cancelados não contam.
+
+**Clique duplo em Salvar:** nos formulários de processo, atendimento e evento, cliques repetidos enquanto o salvamento está em andamento são ignorados.
+
+**ATA e fotos no cadastro do evento:** o formulário de reunião e treinamento tem os campos ATA (ou Lista de presença, no treinamento) e Fotos (vários arquivos de uma vez). Os arquivos são enviados logo depois de salvar, e o detalhe mostra o andamento. No detalhe do evento também dá para escolher vários arquivos de uma vez. Continua valendo: o envio só funciona depois de criar o Blob privado na Vercel (passo a passo na versão 5, abaixo).
+
+| Arquivo | Situação |
+|---|---|
+| `js/inicio.js` | novo (tela Início) |
+| `api/data.js` | alterado (bloqueio de nº repetido no cadastro e na importação) |
+| `api/eventos.js` | alterado (bloqueio de evento repetido) |
+| `js/base.js` | alterado (menu, tela inicial padrão, pop-up, proteção contra clique duplo) |
+| `js/processos.js`, `js/atendimentos.js`, `js/calendario.js`, `js/app.js`, `index.html` | alterados |
+
+Publicação: substitua os arquivos (ou aplique `hub-dbm-v6.patch` com `git am --keep-cr` sobre a v5.1) e faça o push. Não há tabela nem variável nova.
+
+Como testar:
+1. Entre: o "Resumo do dia" mostra a agenda de hoje e amanhã. Ao fechar, aparece a tela Início.
+2. Clique em Novo processo e digite o nº de um processo existente: o sistema avisa e abre o existente.
+3. Lance uma reunião e tente lançar a mesma reunião de novo: o sistema recusa.
+4. Lance uma reunião escolhendo a ATA e duas fotos no próprio formulário: depois de salvar, os três arquivos aparecem no detalhe.
+
+---
+
 ## Versão 5.1: feriados e pontos facultativos
 
 No Calendário, o administrador passa a lançar **Feriado ou ponto facultativo**: clique em Novo evento, escolha esse tipo, informe o nome, a classificação (Feriado nacional, estadual, municipal ou Ponto facultativo), a data de início e fim e, se quiser, o ato ou observação (ex.: o decreto). Para vários dias seguidos, basta um lançamento com início e fim.
