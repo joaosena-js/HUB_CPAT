@@ -705,6 +705,46 @@
             color: var(--er)
         }
 
+        .rgg {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+            gap: 18px;
+            align-items: start
+        }
+
+        .rgg .rgw {
+            grid-column: 1/-1
+        }
+
+        .rgt th.n,
+        .rgt td.n {
+            text-align: right
+        }
+
+        .rgt tbody tr {
+            cursor: default
+        }
+
+        .rgt tr.tot td {
+            font-weight: 700;
+            background: var(--pr2)
+        }
+
+        .rb {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px
+        }
+
+        .rb i {
+            display: block;
+            height: 8px;
+            max-width: 60%;
+            background: var(--pr);
+            border-radius: 4px
+        }
+
         .bd.n {
             background: var(--bg);
             color: var(--mt)
@@ -1141,6 +1181,288 @@
             white-space: pre-wrap
         }
 
+        .cat {
+            min-width: 160px;
+            text-align: center;
+            font-size: 15px
+        }
+
+        .clg {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            font-size: 12px;
+            color: var(--mt);
+            margin-bottom: 10px
+        }
+
+        .clg i {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+            margin-right: 5px;
+            vertical-align: -1px;
+            background: var(--a)
+        }
+
+        .ctR {
+            --a: var(--pr);
+            --b: var(--pr2)
+        }
+
+        .ctT {
+            --a: var(--wn);
+            --b: var(--wn2)
+        }
+
+        .ctF {
+            --a: var(--ok);
+            --b: var(--ok2)
+        }
+
+        .ctA {
+            --a: var(--mt);
+            --b: var(--bg)
+        }
+
+        .cev,
+        .bd.ctR,
+        .bd.ctT,
+        .bd.ctF,
+        .bd.ctA {
+            background: var(--b);
+            color: var(--a)
+        }
+
+        .cgrid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            border: 1px solid var(--bd);
+            border-radius: 10px;
+            overflow: hidden
+        }
+
+        .cds {
+            padding: 6px 8px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--mt);
+            background: var(--bg);
+            border-bottom: 1px solid var(--bd)
+        }
+
+        .cdia {
+            min-height: 106px;
+            min-width: 0;
+            padding: 4px 5px 6px;
+            border-right: 1px solid var(--bd);
+            border-bottom: 1px solid var(--bd);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 3px
+        }
+
+        .cdia:nth-child(7n) {
+            border-right: 0
+        }
+
+        .cdia:hover {
+            background: var(--pr2)
+        }
+
+        .cdia.fo {
+            background: var(--bg)
+        }
+
+        .cdia.fo .cn {
+            opacity: .5
+        }
+
+        .cn {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--mt);
+            align-self: flex-end;
+            width: 24px;
+            height: 24px;
+            display: grid;
+            place-items: center;
+            border-radius: 50%
+        }
+
+        .cdia.hj .cn {
+            background: var(--pr);
+            color: #fff
+        }
+
+        .cev {
+            font-size: 11px;
+            line-height: 1.35;
+            padding: 2px 6px;
+            border-radius: 5px;
+            border-left: 3px solid var(--a);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis
+        }
+
+        .cev.cx {
+            text-decoration: line-through;
+            opacity: .6
+        }
+
+        .cmais {
+            font-size: 11px;
+            color: var(--pr);
+            font-weight: 600;
+            padding: 0 4px
+        }
+
+        .pi.ce {
+            border-left-color: var(--a)
+        }
+
+        .pi.ce .pd {
+            background: var(--b);
+            color: var(--a);
+            font-size: 14px
+        }
+
+        .csem {
+            display: grid;
+            gap: 12px
+        }
+
+        .csd {
+            display: grid;
+            gap: 6px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--bd)
+        }
+
+        .csd h4 {
+            margin: 0;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-transform: capitalize;
+            color: var(--mt)
+        }
+
+        .csd h4 .btn {
+            margin-left: auto
+        }
+
+        .csd.hj h4 {
+            color: var(--pr)
+        }
+
+        .lb {
+            font-size: 12px;
+            color: var(--mt);
+            font-weight: 600
+        }
+
+        .evp {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+            gap: 4px 12px;
+            max-height: 180px;
+            overflow: auto;
+            border: 1px solid var(--bd);
+            border-radius: 9px;
+            padding: 8px 10px;
+            margin-top: 3px
+        }
+
+        .fm .evp label,
+        .fm label.ck {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            font-weight: 500;
+            color: var(--tx);
+            font-size: 13px
+        }
+
+        .fm input[type=checkbox] {
+            width: auto;
+            padding: 0;
+            margin: 0
+        }
+
+        .ax {
+            margin: 0 20px 16px;
+            display: grid;
+            gap: 6px
+        }
+
+        .ax>div {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--bd);
+            border-radius: 9px;
+            padding: 6px 8px
+        }
+
+        .ax .bd {
+            margin: 0
+        }
+
+        .axn {
+            flex: 1;
+            min-width: 0
+        }
+
+        .axn b {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap
+        }
+
+        .axn small {
+            color: var(--mt);
+            font-size: 11px
+        }
+
+        @media(max-width:700px) {
+            .cdia {
+                min-height: 62px;
+                padding: 2px
+            }
+
+            .cev {
+                font-size: 0;
+                height: 6px;
+                padding: 0;
+                border-left: 0;
+                border-radius: 3px;
+                background: var(--a)
+            }
+
+            .cev b {
+                display: none
+            }
+
+            .cmais {
+                font-size: 10px;
+                padding: 0
+            }
+
+            .cat {
+                min-width: 0;
+                font-size: 13px
+            }
+        }
+
         @media(max-width:1100px) {
             .dg {
                 grid-template-columns: 1fr
@@ -1241,6 +1563,8 @@
     <script src="/js/base.js"></script>
     <script src="/js/processos.js"></script>
     <script src="/js/atendimentos.js"></script>
+    <script src="/js/relatorios.js"></script>
+    <script src="/js/calendario.js"></script>
     <script src="/js/usuarios.js"></script>
     <script src="/js/app.js"></script>
 </body>

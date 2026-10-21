@@ -22,7 +22,7 @@ function atLoad(silencioso) {
         try {
             const j = await api({ op: 'list' }, '/api/atendimentos'), sg = JSON.stringify(j); ATU = j.atendentes;
             if (sg === ATL) return; ATL = sg; AT = j.atendimentos;
-            if (tab == 'aten' && (!silencioso || (!$('#dg').open && !$('#dd').open && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)))) draw()
+            if ((tab == 'aten' || tab == 'relg') && (!silencioso || (!$('#dg').open && !$('#dd').open && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)))) draw()
         } catch (e) { if (!silencioso) alert('Erro: ' + e.message) } finally { ATP = null }
     })())
 }
