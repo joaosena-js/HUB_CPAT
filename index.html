@@ -1032,6 +1032,49 @@
             display: block
         }
 
+        [hidden] {
+            display: none !important
+        }
+
+        .kt {
+            margin: 6px 0 10px;
+            font-size: 14px;
+            color: var(--mt);
+            display: flex;
+            gap: 8px;
+            align-items: center
+        }
+
+        .k[onclick] {
+            cursor: pointer
+        }
+
+        .me {
+            padding: 6px 12px 10px;
+            font-size: 12px;
+            color: #94a3b8
+        }
+
+        .me b {
+            display: block;
+            color: #fff;
+            font-size: 13px
+        }
+
+        .ds {
+            margin: 0 20px 14px;
+            font-size: 12px;
+            color: var(--mt)
+        }
+
+        .ds b {
+            display: block;
+            color: var(--tx);
+            font-size: 14px;
+            font-weight: 500;
+            white-space: pre-wrap
+        }
+
         @media(max-width:1100px) {
             .dg {
                 grid-template-columns: 1fr
@@ -1115,10 +1158,18 @@
         <div class="ac" id="ac"></div>
     </dialog>
     <dialog id="dd"></dialog>
-    <dialog id="lg" oncancel="event.preventDefault()" style="width:min(380px,92vw)">
-        <h2>Acesso ao sistema</h2>
-        <form id="lgf" class="fm" style="grid-template-columns:1fr"><label>Senha<input type="password" id="lgp"
-                    autofocus></label><button class="btn p">Entrar</button></form>
+    <dialog id="lg" oncancel="event.preventDefault()" style="width:min(400px,92vw)">
+        <h2 id="lgt">Acesso ao sistema</h2>
+        <form id="lgf" class="fm" style="grid-template-columns:1fr">
+            <div id="lgs" class="ib" style="margin:0">Primeiro acesso: cadastre o administrador do sistema. A chave de
+                instalação é o valor da variável APP_PASSWORD configurada na Vercel.</div>
+            <label data-s>Chave de instalação<input type="password" id="lgk" autocomplete="off"></label>
+            <label data-s>Nome completo<input id="lgn" autocomplete="name" maxlength="100"></label>
+            <label>Login<input id="lgl" autocomplete="username" autocapitalize="none" spellcheck="false"></label>
+            <label>Senha<input type="password" id="lgp" autocomplete="current-password"></label>
+            <p class="nt" id="lge" role="alert" style="color:var(--er);margin:0"></p>
+            <button class="btn p">Entrar</button>
+        </form>
     </dialog>
     <script src="/xlsx.min.js"></script>
     <script>
@@ -1127,23 +1178,49 @@
         const TIPOS = ['Transferência', 'Alienação', 'Caixa do setor'], MS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
         let LAST = '', D = [], L = { status: [], resp: [], orgaos: [], motivos: [], assuntos: [] }, SEED = null, ready = false;
         const $ = s => document.querySelector(s), esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), nz = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-        const ask = () => new Promise(ok => { $('#lg').showModal(); $('#lgf').onsubmit = e => { e.preventDefault(); $('#lg').close(); ok($('#lgp').value) } });
+        try { localStorage.removeItem('dbm_pw') } catch (e) { }
+        const HD = { 'content-type': 'application/json', 'x-hub': '1' };
+        let ME = null, AUTH = null;
+        // Tela de login (ou de configuração inicial, quando ainda não existe nenhum usuário). Uma única tela aberta por vez.
+        function auth(setup) {
+            return AUTH || (AUTH = new Promise(ok => {
+                const d = $('#lg'); $('#lgs').hidden = !setup; d.querySelectorAll('[data-s]').forEach(e => e.hidden = !setup);
+                $('#lgt').textContent = setup ? 'Configuração inicial' : 'Acesso ao sistema'; $('#lge').textContent = ''; $('#lgp').value = ''; $('#lgp').autocomplete = setup ? 'new-password' : 'current-password';
+                $('#lgf').onsubmit = async e => {
+                    e.preventDefault(); const b = { op: setup ? 'setup' : 'login', login: $('#lgl').value.trim(), senha: $('#lgp').value, chave: $('#lgk').value, nome: $('#lgn').value.trim() };
+                    if (!b.login || !b.senha) return $('#lge').textContent = 'Informe login e senha.';
+                    const r = await fetch('/api/data', { method: 'POST', headers: HD, body: JSON.stringify(b) }).catch(() => null), j = r ? await r.json().catch(() => ({})) : {};
+                    if (!r || !r.ok) { $('#lge').textContent = j.error || 'Não foi possível acessar. Verifique a conexão.'; return }
+                    $('#lgk').value = $('#lgp').value = ''; d.close(); AUTH = null; ok()
+                };
+                if (!d.open) d.showModal(); (setup ? $('#lgk') : $('#lgl')).focus()
+            }))
+        }
         async function api(body) {
-            let pw = localStorage.getItem('dbm_pw') || '';
             for (; ;) {
-                const r = await fetch('/api/data', { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-pass': pw }, body: body ? JSON.stringify(body) : undefined });
-                if (r.status == 401) { pw = await ask(); if (!pw) throw new Error('Senha não informada'); localStorage.setItem('dbm_pw', pw); continue }
+                const r = await fetch('/api/data', { method: body ? 'POST' : 'GET', headers: HD, body: body ? JSON.stringify(body) : undefined });
+                if (r.status == 401) { const j = await r.json().catch(() => ({})); await auth(j.setup); continue }
                 if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.status); return r.json()
             }
         }
+        const adm = () => ME && ME.perfil == 'admin';
+        function sair() { run(async () => { await fetch('/api/data', { method: 'POST', headers: HD, body: JSON.stringify({ op: 'logout' }) }); location.reload() }) }
         const run = async f => { try { await f() } catch (e) { alert('Erro: ' + e.message) } };
         async function load() {
             let sg; try {
-                const j = await api(); sg = JSON.stringify(j); if (ready && sg === LAST) return; D = j.processos || []; if (j.listas) L = Object.assign(L, j.listas);
+                const j = await api(); ME = j.me || null; sg = JSON.stringify(j); if (ready && sg === LAST) return; D = j.processos || []; if (j.listas) L = Object.assign(L, j.listas);
                 if (!j.listas || !D.length) { SEED = await (await fetch('/seed.json')).json(); if (!j.listas) L = SEED.listas } ready = true
             }
             catch (e) { $('#mn').innerHTML = '<div class="ib">Não foi possível conectar ao banco: ' + esc(e.message) + '</div>'; return }
-            if (!$('#dg').open && !$('#dd').open && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { LAST = sg; draw() }
+            if (!$('#dg').open && !$('#dd').open && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { LAST = sg; draw(); lembrete() }
+        }
+        // Pop-up exibido uma vez a cada login: processos não concluídos atribuídos ao responsável vinculado ao usuário
+        let AVISO = null;
+        function lembrete() {
+            if (!ME || !ME.responsavel || AVISO == ME.sessao || $('#dd').open) return; AVISO = ME.sessao; const k = 'dbm_aviso_' + ME.id;
+            try { if (localStorage.getItem(k) == ME.sessao) return; localStorage.setItem(k, ME.sessao) } catch (e) { }
+            const v = view().filter(r => !done(r) && r.resp == ME.responsavel).sort((a, b) => (b.age ?? -1) - (a.age ?? -1)); if (!v.length) return;
+            $('#dd').innerHTML = `<h2><span>Seus processos em andamento</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2><div style="padding:14px 20px 4px"><p class="nt" style="margin:0 0 10px">Olá, ${esc(ME.nome.split(' ')[0])}. Há <b>${v.length}</b> processo(s) sob sua responsabilidade aguardando providência, do mais antigo para o mais novo.</p><div class="pl" style="max-height:55vh">${v.map(r => `<div class="pi ${r.crit}" onclick="det(${r.id})"><div class="pd"><div>${r.age ?? '?'}<small>dias</small></div></div><div class="pm"><b>${esc(r.numero)}</b><span>${esc(r.tipo)} · ${esc(r.orgao || '—')}</span><span>${esc(r.descricao || r.assunto)}</span>${stc(r)} ${cb(r)}</div></div>`).join('')}</div></div><div class="ac" style="padding-top:12px"><button class="btn p" onclick="$('#dd').close()">Entendi</button><span class="sp"></span><button class="btn" onclick="$('#dd').close();go('vida')">Ver fila completa</button></div>`; $('#dd').showModal()
         }
         const day = s => s ? Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 864e5 : null;
         const TS = () => { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0') };
@@ -1151,16 +1228,17 @@
         const age = r => { if (!r.tram) return null; const e = done(r) && r.concl ? day(r.concl) : day(TS()); return Math.round(e - day(r.tram)) };
         const cfg = () => L.cfg || { atencao: 180, critico: 365 }, CL = { c: 'Crítico', a: 'Atenção', o: 'Dentro do prazo', d: 'Concluído' }, CC = { c: 'r', a: 'y', o: 'g', d: 'g' };
         const crit = a => a == null ? 'o' : a > cfg().critico ? 'c' : a > cfg().atencao ? 'a' : 'o';
-        const view = () => D.map(r => { const a = age(r), d = done(r); return { ...r, age: a, crit: d ? 'd' : crit(a), assunto: r.detalhe || r.obs || r.tipo, setor: r.setor || (d ? 'Concluído' : 'DBM'), destino: r.destino || r.recebedor || '', mov: r.mov || r.concl || r.tram || '' } });
-        const apr = r => !done(r) && /AGUARD|DESPACH|ASSIN/.test(r.status), pend = r => !done(r) && /RECEBIDO|PEND/.test(r.status);
+        const view = () => D.map(r => { const a = age(r), d = done(r); return { ...r, age: a, crit: d ? 'd' : crit(a), assunto: r.detalhe || r.descricao || r.obs || r.tipo, setor: r.setor || (d ? 'Concluído' : 'DBM'), destino: r.destino || r.recebedor || '', mov: r.mov || r.concl || r.tram || '' } });
+        const apr = r => !done(r) && /AGUARD|DESPACH|ASSIN/.test(r.status), pend = r => !done(r) && /RECEBIDO|PEND|AN[AÁ]LISE/.test(r.status);
         const cb = r => `<span class="bd ${CC[r.crit]}">${CL[r.crit]}</span>`, stc = r => `<span class="bd ${done(r) ? 'g' : apr(r) ? '' : pend(r) ? 'y' : ''}">${esc(r.status)}</span>`;
         const brl = v => v === '' || v == null ? '—' : (+v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         const bem = r => r.bem || (r.itens ? r.itens + ' ite' + (r.itens > 1 ? 'ns' : 'm') : '—');
         const venc = r => { if (done(r) || r.age == null) return ''; const d = cfg().critico - r.age; return d < 0 ? `<span class="bd r">${ic('warn', 12)} Vencido há ${-d}d</span>` : d <= 30 ? `<span class="bd y">${ic('clock', 12)} Vence em ${d}d</span>` : '' };
-        const hay = x => nz([x.numero, x.orgao, x.assunto, x.recebedor, x.setor, x.destino, x.status, x.resp, x.tipo, x.doc, x.bem].join(' '));
+        const hay = x => nz([x.numero, x.descricao, x.obs, x.orgao, x.assunto, x.recebedor, x.setor, x.destino, x.status, x.resp, x.tipo, x.doc, x.bem].join(' '));
         let tab = 'dash', sub = 'rel';
-        const NAV = [['dash', 'dash', 'Dashboard'], ['caixa', 'inbox', 'Caixa do Setor'], ['alien', 'archive', 'Alienações'], ['transf', 'swap', 'Transferências'], ['todos', 'files', 'Todos os Processos'], ['vida', 'history', 'Vida do Processo'], ['rel', 'chart', 'Listas e Relatórios']];
-        const CT = [['Nº do processo', r => r.numero], ['Tipo', r => r.tipo], ['Interessado', r => r.orgao], ['Assunto', r => r.assunto, r => `<span style="white-space:normal">${esc(r.assunto)}</span>`], ['Recebedor', r => r.recebedor], ['Responsável', r => r.resp], ['Entrada', r => fmt(r.tram)], ['Movimentação', r => fmt(r.mov)], ['Status', r => r.status, stc], ['Prioridade', r => CL[r.crit], cb], ['Dias', r => r.age ?? '']];
+        const NAV = [['dash', 'dash', 'Dashboard'], ['caixa', 'inbox', 'Caixa do Setor'], ['alien', 'archive', 'Alienações'], ['transf', 'swap', 'Transferências'], ['todos', 'files', 'Todos os Processos'], ['vida', 'history', 'Vida do Processo'], ['rel', 'chart', 'Listas e Relatórios'], ['usu', 'user', 'Usuários e Log', 1]];
+        const dsc = r => `<span style="white-space:normal">${esc(r.descricao) || '—'}</span>`;
+        const CT = [['Nº do processo', r => r.numero], ['Descrição', r => r.descricao, dsc], ['Tipo', r => r.tipo], ['Interessado', r => r.orgao], ['Assunto', r => r.assunto, r => `<span style="white-space:normal">${esc(r.assunto)}</span>`], ['Recebedor', r => r.recebedor], ['Responsável', r => r.resp], ['Entrada', r => fmt(r.tram)], ['Movimentação', r => fmt(r.mov)], ['Status', r => r.status, stc], ['Prioridade', r => CL[r.crit], cb], ['Dias', r => r.age ?? '']];
         const act = r => `<button class="btn s" title="Detalhes" onclick="event.stopPropagation();det(${r.id})">${ic('eye', 15)}</button>`;
         const VD = {
             todos: { t: 'Todos os Processos', s: 'Consulta geral com pesquisa, filtros combináveis e exportação', base: () => true, c: [...CT, ['Ações', () => '', act]] },
@@ -1173,19 +1251,24 @@
                 c: [['Bem', bem], ['Órgão', r => r.orgao], ['Processo', r => r.numero], ['Motivo', r => r.detalhe], ['Situação', r => r.status, stc], ['Data', r => fmt(r.tram)], ['Ações', () => '', act]]
             },
             transf: {
-                t: 'Transferências', s: 'Transferência de bens entre órgãos', base: r => r.tipo == 'Transferência', kp: v => [['Total de Processos', v.length, 'swap', ''], ['Em Análise', v.filter(pend).length, 'clock', 'y'], ['Em Tramitação', v.filter(r => !done(r) && !pend(r)).length, 'history', 'v'], ['Concluídos', v.filter(done).length, 'ok', 'g']],
-                c: [['Qtde. de Bens', bem], ['Órgão Cedente', r => r.orgao], ['Órgão Destino', r => r.destino], ['Nº do Processo', r => r.numero], ['Responsável', r => r.resp], ['Status', r => r.status, stc], ['Entrada', r => fmt(r.tram)], ['Ações', () => '', act]]
+                t: 'Transferências', s: 'Transferência de bens entre órgãos', base: r => r.tipo == 'Transferência', fo: 1, fd: ['assunto', 'orgao', 'recebedor', 'resp', 'setor', 'status', 'crit'], dt: ['e1', 'e2'],
+                kp: v => [['Total de Processos', v.filter(r => !done(r)).length, 'swap', '', { c: '', t: 'não inclui os concluídos' }], ['Em Análise', v.filter(pend).length, 'clock', 'y'], ['Em Tramitação', v.filter(r => !done(r) && !pend(r)).length, 'history', 'v'], ['Concluídos', v.filter(done).length, 'ok', 'g']],
+                c: [['Nº do Processo', r => r.numero], ['Descrição', r => r.descricao, dsc], ['Qtde. de Bens', bem], ['Órgão Cedente', r => r.orgao], ['Órgão Destino', r => r.destino], ['Responsável', r => r.resp], ['Status', r => r.status, stc], ['Entrada', r => fmt(r.tram)], ['Ações', () => '', act]]
             },
             vida: { t: 'Vida do Processo', s: 'Dias que cada processo está no setor, do mais antigo ao mais novo', base: r => !done(r), card: 1, c: CT }
         };
         const FD = [['assunto', 'Assunto'], ['orgao', 'Interessado'], ['recebedor', 'Recebedor'], ['resp', 'Responsável'], ['setor', 'Setor atual'], ['destino', 'Setor destino'], ['tipo', 'Tipo de processo'], ['status', 'Status'], ['crit', 'Prioridade']];
-        const LS = {}, gs = k => LS[k] || (LS[k] = { q: '', sort: 'asc', page: 1, size: 10, f: {}, open: false });
+        const FT = [['e1', 'Entrada de'], ['e2', 'Entrada até'], ['m1', 'Movimentação de'], ['m2', 'Movimentação até']];
+        const LS = {}, gs = k => LS[k] || (LS[k] = { q: '', sort: 'asc', page: 1, size: 10, f: {}, open: !!(VD[k] && VD[k].fo) });
+        // Cada tela pode limitar quais filtros aparecem (fd/dt). skip ignora um campo para montar as opções dependentes dos demais filtros.
+        const okF = (x, f, skip) => FD.every(([c]) => c == skip || !f[c] || x[c] == f[c]) && (!f.e1 || x.tram >= f.e1) && (!f.e2 || x.tram && x.tram <= f.e2) && (!f.m1 || x.mov >= f.m1) && (!f.m2 || x.mov && x.mov <= f.m2);
+        const busca = (k, s = gs(k), q = nz(s.q)) => view().filter(VD[k].base).filter(x => !q || hay(x).includes(q));
         function rows(k) {
-            const s = gs(k), q = nz(s.q), f = s.f; return view().filter(VD[k].base).filter(x => (!q || hay(x).includes(q)) && FD.every(([c]) => !f[c] || x[c] == f[c]) && (!f.e1 || x.tram >= f.e1) && (!f.e2 || x.tram && x.tram <= f.e2) && (!f.m1 || x.mov >= f.m1) && (!f.m2 || x.mov && x.mov <= f.m2))
+            const s = gs(k); return busca(k).filter(x => okF(x, s.f))
                 .sort((a, b) => !a.tram ? 1 : !b.tram ? -1 : (s.sort == 'asc' ? 1 : -1) * a.tram.localeCompare(b.tram))
         }
         const head = (t, s, x = '') => `<div class="ph"><div><h2>${t}</h2><p>${s}</p></div><div>${x}</div></div>`;
-        const kc = (i, c, l, v, d) => `<div class="k ${c}"><div class="ki">${ic(i, 22)}</div><div><span>${l}</span><b>${v}</b>${d ? `<em class="${d.c}" title="Últimos 30 dias vs. 30 dias anteriores">${d.t}</em>` : ''}</div></div>`;
+        const kc = (i, c, l, v, d, o) => `<div class="k ${c}"${o ? ` onclick="${o}" title="Abrir a tela"` : ''}><div class="ki">${ic(i, 22)}</div><div><span>${l}</span><b>${v}</b>${d ? `<em class="${d.c}" title="Últimos 30 dias vs. 30 dias anteriores">${d.t}</em>` : ''}</div></div>`;
         function dv(rs, f) {
             const t = day(TS()), n = (a, b) => rs.filter(r => { const x = f(r); if (!x) return 0; const d = day(x); return d > t - a && d <= t - b }).length, c = n(30, 0), p = n(60, 30);
             if (!p) return { c: '', t: c ? `+${c} nos últimos 30 dias` : 'sem variação em 30 dias' }; const v = Math.round((c - p) / p * 100); return { c: v >= 0 ? 'up' : 'dn', t: ic(v >= 0 ? 'tu' : 'td', 14) + ' ' + (v >= 0 ? '+' : '') + v + '% em 30 dias' }
@@ -1200,26 +1283,32 @@
         function dash() {
             const v = view(), ab = v.filter(r => !done(r)), ok = v.filter(done), old = ab.filter(r => r.age != null).sort((a, b) => b.age - a.age),
                 B = [['até ' + cfg().atencao + ' dias', 'o', '#16a34a'], ['até ' + cfg().critico + ' dias', 'a', '#d97706'], ['acima de ' + cfg().critico + ' dias', 'c', '#dc2626']], tp = ['#1d4ed8', '#16a34a', '#d97706'];
-            return head('Dashboard Executivo', 'Visão gerencial dos processos do setor') + `<div class="kp">${kc('files', '', "Total de Processos", v.length, dv(v, r => r.tram))}${kc('clock', 'y', 'Processos Pendentes', ab.length, dv(ab, r => r.tram))}${kc('ok', 'g', 'Processos Concluídos', ok.length, dv(ok, r => r.concl))}${kc('archive', 'v', 'Alienações', v.filter(r => r.tipo == 'Alienação').length, dv(v.filter(r => r.tipo == 'Alienação'), r => r.tram))}${kc('swap', '', 'Transferências', v.filter(r => r.tipo == 'Transferência').length, dv(v.filter(r => r.tipo == 'Transferência'), r => r.tram))}</div>
-<div class="dg"><div><div class="cd"><h3>${ic('chart', 18)} Entradas e conclusões por mês</h3>${mon(v)}</div><div class="g2"><div class="cd"><h3>${ic('clock', 18)} Pendentes por criticidade</h3>${bars(B.map(b => [b[0], ab.filter(r => r.crit == b[1]).length, b[2]]))}</div>
-<div class="cd"><h3>${ic('list', 18)} Pendentes por tipo</h3>${dn(TIPOS.map((t, i) => [t, ab.filter(r => r.tipo == t).length, tp[i]]))}</div></div>
-<div class="cd"><h3>${ic('bank', 18)} Interessados com mais processos pendentes</h3>${bars(Object.entries(ab.reduce((o, r) => { const k = r.orgao || '(não informado)'; o[k] = (o[k] || 0) + 1; return o }, {})).sort((a, b) => b[1] - a[1]).slice(0, 8).map(x => [x[0], x[1], '#1d4ed8']))}</div></div>
-<aside class="cd side"><h3>Mais Antigos</h3><div class="pl">${old.slice(0, 10).map(r => `<div class="pi ${r.crit}" onclick="det(${r.id})"><div class="pd"><div>${r.age}<small>dias</small></div></div><div class="pm"><b>${esc(r.numero)}</b><span>${esc(r.orgao || '—')}</span><span>${esc(r.assunto)}</span>${cb(r)}</div></div>`).join('') || '<p class="nt">Sem pendências.</p>'}</div><p style="margin:12px 0 0"><button class="btn s" onclick="go('vida')">Ver fila completa ${ic('cr', 14)}</button></p></aside></div>`
+            // Em análise / Em tramitação seguem a mesma regra das telas de Alienações e Transferências, para os números baterem
+            const A = v.filter(r => r.tipo == 'Alienação'), T = v.filter(r => r.tipo == 'Transferência'),
+                grp = (t, i, x, k, an, tr) => `<h3 class="kt">${ic(i, 18)} ${t}</h3><div class="kp">${kc(i, 'v', 'Total', x.length, dv(x, r => r.tram), `go('${k}')`)}${kc('ok', 'g', 'Concluídos', x.filter(done).length, dv(x.filter(done), r => r.concl), `go('${k}')`)}${kc('search', 'y', 'Em análise', x.filter(an).length, null, `go('${k}')`)}${kc('clock', '', 'Em tramitação', x.filter(tr).length, null, `go('${k}')`)}</div>`;
+            return head('Dashboard Executivo', 'Visão gerencial dos processos do setor') + `<div class="kp">${kc('files', '', 'Total de Processos', v.length, dv(v, r => r.tram), "go('todos')")}${kc('clock', 'y', 'Processos em aguardo', ab.length, { c: '', t: 'todos os não concluídos' }, "go('vida')")}</div>`
+                + grp('Processos de Alienação', 'archive', A, 'alien', r => !done(r) && !apr(r), apr) + grp('Processos de Transferência', 'swap', T, 'transf', pend, r => !done(r) && !pend(r)) + `
+<div class="dg"><div><div class="cd"><h3>${ic('chart', 18)} Entradas e conclusões por mês</h3>${mon(v)}</div><div class="g2"><div class="cd"><h3>${ic('clock', 18)} Em aguardo por prazo</h3>${bars(B.map(b => [b[0], ab.filter(r => r.crit == b[1]).length, b[2]]))}</div>
+<div class="cd"><h3>${ic('list', 18)} Em aguardo por tipo</h3>${dn(TIPOS.map((t, i) => [t, ab.filter(r => r.tipo == t).length, tp[i]]))}</div></div>
+<div class="cd"><h3>${ic('bank', 18)} Interessados com mais processos em aguardo</h3>${bars(Object.entries(ab.reduce((o, r) => { const k = r.orgao || '(não informado)'; o[k] = (o[k] || 0) + 1; return o }, {})).sort((a, b) => b[1] - a[1]).slice(0, 8).map(x => [x[0], x[1], '#1d4ed8']))}</div></div>
+<aside class="cd side"><h3>Mais Antigos</h3><div class="pl">${old.slice(0, 10).map(r => `<div class="pi ${r.crit}" onclick="det(${r.id})"><div class="pd"><div>${r.age}<small>dias</small></div></div><div class="pm"><b>${esc(r.numero)}</b><span>${esc(r.orgao || '—')}</span><span>${esc(r.assunto)}</span>${cb(r)}</div></div>`).join('') || '<p class="nt">Nenhum processo em aguardo.</p>'}</div><p style="margin:12px 0 0"><button class="btn s" onclick="go('vida')">Ver fila completa ${ic('cr', 14)}</button></p></aside></div>`
         }
         function screen(k) {
             const s = gs(k), V = VD[k], kp = V.kp ? V.kp(view().filter(V.base)) : null;
-            return head(V.t, V.s, k == 'todos' || k == 'caixa' ? `<button class="btn p" onclick="edit(0)">${ic('plus', 16)} Novo processo</button>` : '') + (kp ? `<div class="kp">${kp.map(x => kc(x[2], x[3], x[0], x[1])).join('')}</div>` : '') + `<div class="cd"><div class="tb"><div class="sr">${ic('search')}<input value="${esc(s.q)}" placeholder="Pesquisar por nº, interessado, assunto, recebedor, setor, status, responsável…" oninput="gs('${k}').q=this.value;gs('${k}').page=1;list('${k}')"></div>
+            return head(V.t, V.s, k == 'todos' || k == 'caixa' ? `<button class="btn p" onclick="edit(0)">${ic('plus', 16)} Novo processo</button>` : '') + (kp ? `<div class="kp">${kp.map(x => kc(x[2], x[3], x[0], x[1], x[4])).join('')}</div>` : '') + `<div class="cd"><div class="tb"><div class="sr">${ic('search')}<input value="${esc(s.q)}" placeholder="Pesquisar por nº, interessado, assunto, recebedor, setor, status, responsável…" oninput="gs('${k}').q=this.value;gs('${k}').page=1;list('${k}')"></div>
 <select onchange="gs('${k}').sort=this.value;list('${k}')"><option value="asc" ${s.sort == 'asc' ? 'selected' : ''}>Mais antigo → mais novo</option><option value="desc" ${s.sort == 'desc' ? 'selected' : ''}>Mais novo → mais antigo</option></select>
 <button class="btn" onclick="tgF('${k}')">${ic('filter', 16)} Filtros <span class="cnt" id="fc"></span></button><button class="btn" onclick="ex('${k}','x')">${ic('xls', 16)} Excel</button><button class="btn" onclick="ex('${k}','p')">${ic('pdf', 16)} PDF</button></div><div id="fp">${s.open ? fpan(k) : ''}</div><div id="res"></div></div>`
         }
+        // Filtros automáticos: aplicam ao escolher, e cada lista mostra só as opções que existem com os demais filtros, com a quantidade.
         function fpan(k) {
-            const s = gs(k), b = view().filter(VD[k].base), o = f => f == 'crit' ? Object.keys(CL).filter(c => b.some(r => r.crit == c)).map(c => [c, CL[c]]) : [...new Set(b.map(r => r[f]).filter(Boolean))].sort((x, y) => String(x).localeCompare(y, 'pt')).map(x => [x, x]);
-            return `<div class="fg">${FD.map(([f, l]) => `<label>${l}<select onchange="sF('${k}','${f}',this.value)"><option value="">Todos</option>${o(f).map(([v, t]) => `<option value="${esc(v)}" ${s.f[f] == v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`).join('')}${[['e1', 'Entrada de'], ['e2', 'Entrada até'], ['m1', 'Movimentação de'], ['m2', 'Movimentação até']].map(([f, l]) => `<label>${l}<input type="date" value="${s.f[f] || ''}" onchange="sF('${k}','${f}',this.value)"></label>`).join('')}<button class="btn" onclick="clF('${k}')">Limpar filtros</button></div>`
+            const s = gs(k), V = VD[k], b = busca(k), fd = V.fd ? FD.filter(x => V.fd.includes(x[0])) : FD, ft = V.dt ? FT.filter(x => V.dt.includes(x[0])) : FT,
+                o = f => { const c = {}; b.filter(x => okF(x, s.f, f)).forEach(x => { const v = x[f]; if (v) c[v] = (c[v] || 0) + 1 }); if (s.f[f] && !c[s.f[f]]) c[s.f[f]] = 0; return (f == 'crit' ? Object.keys(CL).filter(x => x in c) : Object.keys(c).sort((x, y) => x.localeCompare(y, 'pt'))).map(v => [v, (f == 'crit' ? CL[v] : v) + ' (' + c[v] + ')']) };
+            return `<div class="fg">${fd.map(([f, l]) => `<label>${l}<select onchange="sF('${k}','${f}',this.value)"><option value="">Todos</option>${o(f).map(([v, t]) => `<option value="${esc(v)}" ${s.f[f] == v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`).join('')}${ft.map(([f, l]) => `<label>${l}<input type="date" value="${s.f[f] || ''}" onchange="sF('${k}','${f}',this.value)"></label>`).join('')}<button class="btn" onclick="clF('${k}')">Limpar filtros</button></div>`
         }
-        const sF = (k, f, v) => { const s = gs(k); s.f[f] = v; s.page = 1; list(k) }, clF = k => { gs(k).f = {}; gs(k).page = 1; $('#fp').innerHTML = fpan(k); list(k) }, tgF = k => { const s = gs(k); s.open = !s.open; $('#fp').innerHTML = s.open ? fpan(k) : '' }, pp = (k, d) => { gs(k).page += d; list(k) };
+        const sF = (k, f, v) => { const s = gs(k); s.f[f] = v; s.page = 1; list(k) }, clF = k => { gs(k).f = {}; gs(k).page = 1; list(k) }, tgF = k => { const s = gs(k); s.open = !s.open; $('#fp').innerHTML = s.open ? fpan(k) : '' }, pp = (k, d) => { gs(k).page += d; list(k) };
         function list(k) {
             const el = $('#res'); if (!el) return; const s = gs(k), V = VD[k], r = rows(k), n = r.length, P = Math.max(1, Math.ceil(n / s.size)); s.page = Math.min(s.page, P); const pg = r.slice((s.page - 1) * s.size, s.page * s.size), nf = Object.values(s.f).filter(Boolean).length;
-            $('#fc').textContent = nf || ''; const m = Math.max(1, ...r.map(x => x.age || 0));
+            $('#fc').textContent = nf || ''; if (s.open && $('#fp')) $('#fp').innerHTML = fpan(k); const m = Math.max(1, ...r.map(x => x.age || 0));
             el.innerHTML = (V.card ? pg.map(x => `<div class="vc" onclick="det(${x.id})"><div class="pd" style="${''}"><div>${x.age ?? '?'}<small>dias</small></div></div><div class="pm" style="font-size:13px"><div><b style="display:inline">${esc(x.numero)}</b> <span class="bd">${esc(x.tipo)}</span> ${stc(x)} ${cb(x)}</div><div>${esc(x.orgao)}${x.recebedor ? ' → ' + esc(x.recebedor) : ''} · ${esc(x.assunto)}</div><div>Entrada em ${fmt(x.tram)}${x.resp ? ' · ' + esc(x.resp) : ''}</div><div class="bar"><i style="width:${(x.age || 0) / m * 100}%;background:${x.crit == 'c' ? 'var(--er)' : x.crit == 'a' ? 'var(--wn)' : 'var(--ok)'}"></i></div></div><button class="btn p s" onclick="event.stopPropagation();fin(${x.id})">${ic('ok', 15)} Concluir</button></div>`).join('') :
                 `<div class="tw"><table><thead><tr>${V.c.map(c => `<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${pg.map(x => `<tr class="${V.row ? V.row(x) : ''}" onclick="det(${x.id})">${V.c.map(c => `<td>${c[2] ? c[2](x) : esc(c[1](x)) || '—'}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`) + (n ? '' : '<p class="nt" style="text-align:center;padding:24px">Nenhum processo encontrado.</p>') +
                 `<div class="pgr"><span>${n ? (s.page - 1) * s.size + 1 : 0}–${Math.min(n, s.page * s.size)} de ${n}</span><select onchange="gs('${k}').size=+this.value;gs('${k}').page=1;list('${k}')">${[10, 25, 50, 100].map(x => `<option ${s.size == x ? 'selected' : ''}>${x}</option>`).join('')}</select><button class="btn s" ${s.page < 2 ? 'disabled' : ''} onclick="pp('${k}',-1)">${ic('cl', 16)}</button><b>${s.page}/${P}</b><button class="btn s" ${s.page >= P ? 'disabled' : ''} onclick="pp('${k}',1)">${ic('cr', 16)}</button></div>`
@@ -1232,16 +1321,23 @@
         function ex(k, kind) { const V = VD[k], c = V.c.filter(x => x[0] != 'Ações'); xp(V.t, c.map(x => x[0]), rows(k).map(x => c.map(y => y[1](x))), kind) }
         function det(id) {
             const r = view().find(x => x.id == id); if (!r) return; const f = (l, v) => `<div>${l}<b>${esc(v) || '—'}</b></div>`;
-            $('#dd').innerHTML = `<h2><span>Processo ${esc(r.numero)}</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2><div class="dl">${f('Tipo', r.tipo)}${f('Status', r.status)}${f('Interessado', r.orgao)}${f('Recebedor / Destino', r.destino)}${f('Assunto', r.assunto)}${f('Responsável', r.resp)}${f('Documento', r.doc)}${f('Qtde. de Bens', r.itens)}${f('Setor atual', r.setor)}${f('Observação', r.obs)}<div>Prioridade<b>${cb(r)}</b></div></div>
+            $('#dd').innerHTML = `<h2><span>Processo ${esc(r.numero)}</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2>${r.descricao ? `<div class="ds" style="margin-top:14px">Descrição<b>${esc(r.descricao)}</b></div>` : ''}<div class="dl">${f('Tipo', r.tipo)}${f('Status', r.status)}${f('Interessado', r.orgao)}${f('Recebedor / Destino', r.destino)}${f('Assunto', r.assunto)}${f('Responsável', r.resp)}${f('Documento', r.doc)}${f('Qtde. de Bens', r.itens)}${f('Setor atual', r.setor)}<div>Prioridade<b>${cb(r)}</b></div></div>${r.obs ? `<div class="ds">Observação<b>${esc(r.obs)}</b></div>` : ''}
 <div class="tl">${r.datadoc ? `<div><b>Documento emitido</b><small>${fmt(r.datadoc)} · ${esc(r.doc)}</small></div>` : ''}<div><b>Entrada no setor</b><small>${fmt(r.tram)}</small></div>${r.mov && r.mov != r.tram && r.mov != r.concl ? `<div><b>Última movimentação</b><small>${fmt(r.mov)}</small></div>` : ''}<div><b>${done(r) ? 'Concluído' : 'Em andamento'}</b><small>${done(r) ? fmt(r.concl) + ' · ' + r.age + ' dias no setor' : (r.age ?? '?') + ' dias aguardando'}</small></div></div>
-<div class="ac"><button class="btn p" onclick="$('#dd').close();edit(${r.id})">${ic('pen', 15)} Editar</button>${done(r) ? '' : `<button class="btn" onclick="fin(${r.id})">${ic('ok', 15)} Concluir</button>`}<span class="sp"></span><button class="btn d" onclick="rm(${r.id})">${ic('trash', 15)} Excluir</button></div>`; $('#dd').showModal()
+<h3 class="kt" style="margin:0 20px 8px">${ic('history', 16)} Histórico do processo</h3><form class="tb" style="margin:0 20px 10px" onsubmit="event.preventDefault();hAdd(${r.id})"><input type="date" id="hd" value="${TS()}" max="${TS()}" aria-label="Data"><input id="hx" maxlength="2000" placeholder="O que aconteceu? Ex.: Anexado ofício de resposta do órgão" style="flex:1;min-width:200px" aria-label="Descrição"><button class="btn p s">${ic('plus', 14)} Registrar</button></form><div class="tl" id="hl"><p class="nt">Carregando histórico…</p></div>
+<div class="ac"><button class="btn p" onclick="$('#dd').close();edit(${r.id})">${ic('pen', 15)} Editar</button>${done(r) ? '' : `<button class="btn" onclick="fin(${r.id})">${ic('ok', 15)} Concluir</button>`}<span class="sp"></span>${adm() ? `<button class="btn d" onclick="rm(${r.id})">${ic('trash', 15)} Excluir</button>` : ''}</div>`; $('#dd').showModal(); hist(r.id)
         }
+        async function hist(id) {
+            const e = $('#hl'); if (!e) return; let h;
+            try { h = (await api({ op: 'hist_list', id })).historico } catch (er) { e.innerHTML = '<p class="nt">Não foi possível carregar o histórico.</p>'; return }
+            e.innerHTML = h.length ? h.map(x => `<div><b style="font-weight:${x.automatico ? 500 : 600}">${esc(x.descricao)}</b><small>${fmt(x.data)} · registrado por ${esc(x.usuario_nome)}${x.automatico ? ' (automático)' : ''} em ${esc(x.registrado_em)}</small></div>`).join('') : '<p class="nt">Nenhum registro ainda. Use o campo acima para anotar andamentos, mesmo que o processo não tenha terminado.</p>'
+        }
+        function hAdd(id) { const d = $('#hd').value, t = $('#hx').value.trim(); if (!d || t.length < 3) return alert('Informe a data e a descrição do registro.'); run(async () => { await api({ op: 'hist_add', id, data: d, descricao: t }); $('#hx').value = ''; hist(id) }) }
         function gq(v) { const b = $('#gd'), q = nz(v); if (!q) { b.hidden = true; return } const r = view().filter(x => hay(x).includes(q)); b.hidden = false; b.innerHTML = r.slice(0, 7).map(x => `<div onclick="det(${x.id});$('#gd').hidden=true"><b>${esc(x.numero)}</b><span>${esc(x.orgao || x.assunto)} · ${esc(x.status)}</span></div>`).join('') + `<a onclick="gall()">Ver todos os ${r.length} resultados</a>` }
         function gall() { gs('todos').q = $('#gq').value; gs('todos').page = 1; $('#gd').hidden = true; go('todos') }
-        const RP = [['resp', 'Processos por responsável'], ['alien', 'Alienações por período'], ['transf', 'Transferências por período'], ['conc', 'Processos concluídos'], ['pend', 'Processos pendentes'], ['atraso', 'Processos em atraso']]; let RS = { t: 'resp', a: '', b: '', r: '' };
+        const RP = [['resp', 'Processos por responsável'], ['alien', 'Alienações por período'], ['transf', 'Transferências por período'], ['conc', 'Processos concluídos'], ['pend', 'Processos em andamento'], ['atraso', 'Processos em atraso']]; let RS = { t: 'resp', a: '', b: '', r: '' };
         function rg() {
             const v = view(), dt = r => RS.t == 'conc' ? r.concl : r.tram, p = r => (!RS.a || dt(r) >= RS.a) && (!RS.b || dt(r) && dt(r) <= RS.b) && (!RS.r || r.resp == RS.r), ls = f => ({ h: CT.map(c => c[0]), r: v.filter(r => f(r) && p(r)).sort((a, b) => (b.age ?? -1) - (a.age ?? -1)).map(r => CT.map(c => c[1](r))) });
-            if (RS.t == 'resp') { const g = {}; v.filter(p).forEach(r => { const k = r.resp || '(sem responsável)'; (g[k] = g[k] || []).push(r) }); return { h: ['Responsável', 'Total', 'Pendentes', 'Concluídos', 'Idade média dos pendentes (dias)'], r: Object.entries(g).sort((a, b) => b[1].length - a[1].length).map(([k, a]) => { const o = a.filter(r => !done(r) && r.age != null); return [k, a.length, a.filter(r => !done(r)).length, a.filter(done).length, o.length ? Math.round(o.reduce((s, r) => s + r.age, 0) / o.length) : 0] }) } }
+            if (RS.t == 'resp') { const g = {}; v.filter(p).forEach(r => { const k = r.resp || '(sem responsável)'; (g[k] = g[k] || []).push(r) }); return { h: ['Responsável', 'Total', 'Em andamento', 'Concluídos', 'Idade média dos em andamento (dias)'], r: Object.entries(g).sort((a, b) => b[1].length - a[1].length).map(([k, a]) => { const o = a.filter(r => !done(r) && r.age != null); return [k, a.length, a.filter(r => !done(r)).length, a.filter(done).length, o.length ? Math.round(o.reduce((s, r) => s + r.age, 0) / o.length) : 0] }) } }
             return ls({ alien: r => r.tipo == 'Alienação', transf: r => r.tipo == 'Transferência', conc: done, pend: r => !done(r), atraso: r => !done(r) && r.crit == 'c' }[RS.t])
         }
         function relscr() {
@@ -1268,18 +1364,45 @@
         function delL(k, i) { if (confirm('Remover "' + L[k][i] + '" da lista?')) { L[k].splice(i, 1); sl() } }
         function sl() { run(async () => { await api({ op: 'listas', listas: L }); draw() }) }
         function draw() {
-            $('#nv').innerHTML = NAV.map(([k, i, n]) => `<button class="${tab == k ? 'on' : ''}" onclick="go('${k}')">${ic(i, 19)} ${n}</button>`).join('');
-            $('#mn').innerHTML = !ready ? '<p class="nt">Carregando…</p>' : (D.length ? '' : `<div class="ib">O banco está vazio. <button class="btn p s" onclick="seed()">Carregar os ${SEED ? SEED.processos.length : ''} processos da planilha</button></div>`) + (tab == 'dash' ? dash() : tab == 'rel' ? relscr() : screen(tab));
-            if (ready) { if (tab == 'rel') rl(); else if (tab != 'dash') list(tab) }
+            $('#nv').innerHTML = NAV.filter(x => !x[3] || adm()).map(([k, i, n]) => `<button class="${tab == k ? 'on' : ''}" onclick="go('${k}')">${ic(i, 19)} ${n}</button>`).join('');
+            $('#mn').innerHTML = !ready ? '<p class="nt">Carregando…</p>' : (D.length || !adm() ? '' : `<div class="ib">O banco está vazio. <button class="btn p s" onclick="seed()">Carregar os ${SEED ? SEED.processos.length : ''} processos da planilha</button></div>`) + (tab == 'dash' ? dash() : tab == 'rel' ? relscr() : tab == 'usu' ? usuScr() : screen(tab)); sf();
+            if (ready) { if (tab == 'rel') rl(); else if (tab != 'dash' && tab != 'usu') list(tab) }
         }
+        // Usuários e log de atividades (somente administrador; o servidor também bloqueia para os demais perfis)
+        let US = [], LGA = [], LF = { u: '', de: '', ate: '' };
+        const AC = { login: 'Entrou no sistema', logout: 'Saiu do sistema', login_falha: 'Acesso recusado', setup: 'Configuração inicial', processo_criado: 'Cadastrou processo', processo_alterado: 'Alterou processo', processo_excluido: 'Excluiu processo', historico: 'Registrou andamento', importacao: 'Importou dados', listas: 'Alterou cadastros', usuario_criado: 'Criou usuário', usuario_alterado: 'Alterou usuário', senha_alterada: 'Alterou a própria senha' };
+        function usuLoad() { run(async () => { const [a, b] = await Promise.all([api({ op: 'usuarios' }), api({ op: 'log', ...LF })]); US = a.usuarios; LGA = b.log; if (tab == 'usu') draw() }) }
+        function logLoad() { run(async () => { LGA = (await api({ op: 'log', ...LF })).log; if (tab == 'usu') draw() }) }
+        function usuScr() {
+            return head('Usuários e Log', 'Acesso individual dos servidores e registro das atividades no sistema', `<button class="btn p" onclick="usuEd(0)">${ic('plus', 16)} Novo usuário</button>`) + `<div class="cd" style="margin-bottom:18px"><h3>${ic('user', 18)} Usuários (${US.length})</h3><div class="tw"><table><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Responsável vinculado</th><th>Situação</th><th>Último acesso</th><th>Ações</th></tr></thead><tbody>${US.map(u => `<tr onclick="usuEd(${u.id})"><td>${esc(u.nome)}</td><td>${esc(u.login)}</td><td>${u.perfil == 'admin' ? 'Administrador' : 'Servidor'}</td><td>${esc(u.responsavel) || '—'}</td><td><span class="bd ${u.ativo ? 'g' : 'r'}">${u.ativo ? 'Ativo' : 'Inativo'}</span></td><td>${esc(u.ultimo_acesso) || '—'}</td><td><button class="btn s" title="Editar">${ic('pen', 14)}</button></td></tr>`).join('')}</tbody></table></div></div>
+<div class="cd"><h3>${ic('history', 18)} Log de atividades</h3><div class="tb"><label class="nt">Usuário <select onchange="LF.u=this.value;logLoad()"><option value="">Todos</option>${US.map(u => `<option value="${u.id}" ${LF.u == u.id ? 'selected' : ''}>${esc(u.nome)}</option>`).join('')}</select></label><label class="nt">De <input type="date" value="${LF.de}" onchange="LF.de=this.value;logLoad()"></label><label class="nt">Até <input type="date" value="${LF.ate}" onchange="LF.ate=this.value;logLoad()"></label><span class="sp"></span><button class="btn" onclick="xp('Log de atividades',LH,LGA.map(lr),'x')">${ic('xls', 16)} Excel</button></div><p class="nt">${LGA.length} registro(s)${LGA.length >= 1000 ? ' (exibindo os 1000 mais recentes; use o filtro de datas)' : ''}</p><div class="tw" style="max-height:60vh"><table><thead><tr>${LH.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${LGA.map(x => `<tr style="cursor:default">${lr(x).map(c => `<td>${esc(c) || '—'}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`
+        }
+        const LH = ['Data e hora', 'Usuário', 'Ação', 'Detalhe', 'IP'], lr = x => [x.quando, x.usuario_nome || (x.acao == 'login_falha' ? '(não identificado)' : ''), AC[x.acao] || x.acao, x.detalhe, x.ip];
+        function usuEd(id) {
+            const u = id ? US.find(x => x.id == id) : { id: 0, nome: '', login: '', responsavel: '', perfil: 'servidor', ativo: true }; if (!u) return;
+            $('#dd').innerHTML = `<h2><span>${id ? 'Editar usuário' : 'Novo usuário'}</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2><form class="fm" onsubmit="event.preventDefault();usuSv(${u.id})">
+<label class="w">Nome completo<input id="u_nome" value="${esc(u.nome)}" required minlength="3" maxlength="100"></label>
+<label>Login<input id="u_login" value="${esc(u.login)}" ${id ? 'disabled' : 'required'} pattern="[a-z0-9._]{3,40}" title="De 3 a 40 caracteres: letras minúsculas, números, ponto ou sublinhado" autocapitalize="none" spellcheck="false"></label>
+<label>Perfil<select id="u_perfil"><option value="servidor" ${u.perfil != 'admin' ? 'selected' : ''}>Servidor</option><option value="admin" ${u.perfil == 'admin' ? 'selected' : ''}>Administrador</option></select></label>
+<label>Responsável vinculado<select id="u_resp"><option value="">(nenhum)</option>${[...new Set([...L.resp, u.responsavel].filter(Boolean))].map(x => `<option ${u.responsavel == x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+<label>Situação<select id="u_ativo"><option value="1" ${u.ativo ? 'selected' : ''}>Ativo</option><option value="0" ${u.ativo ? '' : 'selected'}>Inativo</option></select></label>
+<label class="w">${id ? 'Nova senha (deixe em branco para manter a atual)' : 'Senha inicial'}<input type="password" id="u_senha" minlength="8" maxlength="200" autocomplete="new-password" ${id ? '' : 'required'}></label>
+<p class="nt w" style="margin:0">O responsável vinculado liga o usuário ao nome usado no campo Responsável dos processos; é ele que define o aviso exibido ao entrar. A senha precisa ter pelo menos 8 caracteres. Entregue a senha inicial de forma reservada e oriente a troca em "Alterar minha senha".</p>
+<div class="w" style="display:flex;gap:8px"><button class="btn p">${ic('ok', 15)} Salvar</button><button type="button" class="btn" onclick="$('#dd').close()">Cancelar</button></div></form>`; $('#dd').showModal()
+        }
+        function usuSv(id) { const b = { op: 'usuario_salvar', id, nome: $('#u_nome').value.trim(), login: $('#u_login').value.trim(), perfil: $('#u_perfil').value, responsavel: $('#u_resp').value, ativo: $('#u_ativo').value == '1', senha: $('#u_senha').value }; run(async () => { await api(b); $('#dd').close(); usuLoad() }) }
+        function senha() {
+            $('#dd').innerHTML = `<h2><span>Alterar minha senha</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2><form class="fm" style="grid-template-columns:1fr" onsubmit="event.preventDefault();senhaSv()"><label>Senha atual<input type="password" id="s_a" required autocomplete="current-password"></label><label>Nova senha (mínimo 8 caracteres)<input type="password" id="s_n" required minlength="8" maxlength="200" autocomplete="new-password"></label><label>Repita a nova senha<input type="password" id="s_r" required minlength="8" maxlength="200" autocomplete="new-password"></label><div style="display:flex;gap:8px"><button class="btn p">Salvar</button><button type="button" class="btn" onclick="$('#dd').close()">Cancelar</button></div></form>`; $('#dd').showModal()
+        }
+        function senhaSv() { if ($('#s_n').value != $('#s_r').value) return alert('A confirmação não confere com a nova senha.'); run(async () => { await api({ op: 'minha_senha', atual: $('#s_a').value, nova: $('#s_n').value }); $('#dd').close(); alert('Senha alterada.') }) }
         function seed() { run(async () => { await api({ op: 'bulk', items: SEED.processos }); await api({ op: 'listas', listas: L }); await load() }) }
-        function go(t) { tab = t; $('#sd').classList.remove('o'); draw(); scrollTo(0, 0) }
+        function go(t) { tab = t; $('#sd').classList.remove('o'); draw(); scrollTo(0, 0); if (t == 'usu') usuLoad() }
         function th() { const d = document.documentElement, n = d.dataset.t == 'dark' ? 'light' : 'dark'; d.dataset.t = n; localStorage.setItem('dbm_t', n); $('#bt').innerHTML = ic(n == 'dark' ? 'sun' : 'moon', 17) }
-        let cur = {}; const KS = ['numero', 'tipo', 'tram', 'orgao', 'recebedor', 'detalhe', 'itens', 'doc', 'datadoc', 'status', 'resp', 'concl', 'obs', 'bem'];
+        let cur = {}; const KS = ['numero', 'descricao', 'setor', 'tipo', 'tram', 'orgao', 'recebedor', 'detalhe', 'itens', 'doc', 'datadoc', 'status', 'resp', 'concl', 'obs', 'bem'];
         function edit(id) {
-            cur = id ? { ...D.find(r => r.id == id) } : { id: 0, numero: '', tipo: TIPOS[0], tram: TS(), orgao: '', recebedor: '', detalhe: '', itens: '', doc: '', datadoc: '', status: L.status[0] || '', resp: '', concl: '', obs: '', bem: '' };
+            cur = id ? { ...D.find(r => r.id == id) } : { id: 0, numero: '', descricao: '', setor: '', tipo: TIPOS[0], tram: TS(), orgao: '', recebedor: '', detalhe: '', itens: '', doc: '', datadoc: '', status: L.status[0] || '', resp: '', concl: '', obs: '', bem: '' };
             $('#dt').textContent = id ? 'Processo ' + cur.numero : 'Novo processo'; form();
-            $('#ac').innerHTML = `<button class="btn p" onclick="sv()">${ic('ok', 15)} Salvar</button>${id ? `<button class="btn" onclick="fin(${id})">Concluir hoje</button>` : ''}<span class="sp"></span>${id ? `<button class="btn d" onclick="rm(${id})">Excluir</button>` : ''}<button class="btn" onclick="$('#dg').close()">Cancelar</button>`; $('#dg').showModal()
+            $('#ac').innerHTML = `<button class="btn p" onclick="sv()">${ic('ok', 15)} Salvar</button>${id ? `<button class="btn" onclick="fin(${id})">Concluir hoje</button>` : ''}<span class="sp"></span>${id && adm() ? `<button class="btn d" onclick="rm(${id})">Excluir</button>` : ''}<button class="btn" onclick="$('#dg').close()">Cancelar</button>`; $('#dg').showModal()
         }
         function collect() { KS.forEach(k => { const e = $('#f_' + k); if (e) cur[k] = e.value.trim() }) }
         function rt() { const o = cur.tipo; collect(); if (cur.tipo != o) cur.detalhe = ''; form() }
@@ -1290,7 +1413,7 @@
             const ex = T == 'Transferência' ? f('orgao', 'Órgão cedente (origem)', 'text', '', 'dl_o') + f('recebedor', 'Órgão recebedor (destino)', 'text', '', 'dl_o') + f('itens', 'Quantidade de itens', 'number')  :
                 T == 'Alienação' ? f('orgao', 'Órgão', 'text', '', 'dl_o') + s('detalhe', 'Motivo da baixa', L.motivos) + f('itens', 'Quantidade de itens', 'number') :
                     f('orgao', 'Interessado', 'text', '', 'dl_o') + f('detalhe', 'Assunto / marcador', 'text', '', 'dl_a');
-            $('#fm').innerHTML = f('numero', 'Nº do processo', 'text', 'w') + `<label>Tipo<select id="f_tipo" onchange="rt()">${TIPOS.map(x => `<option ${T == x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>` + f('tram', 'Data de Tramitação', 'date') + ex + f('doc', 'Nº do documento') + f('datadoc', 'Data do documento', 'date') + s('status', 'Status', L.status) + s('resp', 'Responsável', L.resp) + f('concl', 'Data de conclusão', 'date') + `<label class="w">Observação<textarea id="f_obs" rows="2">${esc(cur.obs)}</textarea></label>` + dl('dl_o', L.orgaos) + dl('dl_a', L.assuntos)
+            $('#fm').innerHTML = f('numero', 'Nº do processo', 'text', 'w') + `<label class="w">Descrição<textarea id="f_descricao" rows="2" maxlength="4000" placeholder="Resumo do que trata o processo">${esc(cur.descricao)}</textarea></label><label>Tipo<select id="f_tipo" onchange="rt()">${TIPOS.map(x => `<option ${T == x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>` + f('tram', 'Data de Tramitação', 'date') + ex + f('doc', 'Nº do documento') + f('datadoc', 'Data do documento', 'date') + s('status', 'Status', L.status) + s('resp', 'Responsável', L.resp) + f('setor', 'Setor atual (vazio = DBM)', 'text', '', 'dl_o') + f('concl', 'Data de conclusão', 'date') + `<label class="w">Observação<textarea id="f_obs" rows="2" maxlength="4000">${esc(cur.obs)}</textarea></label>` + dl('dl_o', L.orgaos) + dl('dl_a', L.assuntos)
         }
         async function put(r) { const j = await api({ op: 'save', item: r }); r.id = j.id; const i = D.findIndex(x => x.id == r.id); i < 0 ? D.push(r) : D[i] = r }
         function sv() {
@@ -1301,7 +1424,7 @@
         }
         function fin(id) { const r = { ...D.find(x => x.id == id) }; r.status = L.status.find(s => s.startsWith('CONCLU')) || 'CONCLUÍDO – DBM'; r.concl = r.mov = TS(); run(async () => { await put(r); $('#dg').close(); $('#dd').close(); draw() }) }
         function rm(id) { if (confirm('Excluir este processo?')) run(async () => { await api({ op: 'del', id }); D = D.filter(x => x.id != id); $('#dg').close(); $('#dd').close(); draw() }) }
-        const H = ['Nº do processo', 'Tipo', 'Órgão cedente / Órgão / Interessado', 'Órgão recebedor', 'Motivo da baixa / Assunto', 'Itens', 'Documento', 'Data do doc.', 'Data de tramitação', 'Status', 'Responsável', 'Conclusão', 'Observação', 'Bem'], K = ['numero', 'tipo', 'orgao', 'recebedor', 'detalhe', 'itens', 'doc', 'datadoc', 'tram', 'status', 'resp', 'concl', 'obs', 'bem'];
+        const H = ['Nº do processo', 'Descrição', 'Tipo', 'Órgão cedente / Órgão / Interessado', 'Órgão recebedor', 'Motivo da baixa / Assunto', 'Itens', 'Documento', 'Data do doc.', 'Data de tramitação', 'Status', 'Responsável', 'Conclusão', 'Observação', 'Bem', 'Setor atual'], K = ['numero', 'descricao', 'tipo', 'orgao', 'recebedor', 'detalhe', 'itens', 'doc', 'datadoc', 'tram', 'status', 'resp', 'concl', 'obs', 'bem', 'setor'];
         function xl() {
             const rows = view().sort((a, b) => (b.age ?? -1) - (a.age ?? -1)).map(r => { const o = {}; K.forEach((k, i) => o[H[i]] = /^(tram|datadoc|concl)$/.test(k) ? fmt(r[k]).replace('—', '') : r[k]); o['Dias com o setor'] = r.age; return o });
             const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'PROCESSOS'); XLSX.writeFile(wb, 'processos_dbm_' + TS() + '.xlsx')
@@ -1309,7 +1432,7 @@
         function bk() { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({ processos: D, listas: L })], { type: 'application/json' })); a.download = 'backup_dbm_' + TS() + '.json'; a.click() }
         const pd = v => { if (v instanceof Date) return new Date(v.getTime() + 432e5).toISOString().slice(0, 10); v = String(v ?? '').trim(); let m = v.match(/^(\d\d)\/(\d\d)\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : /^\d{4}-\d\d-\d\d/.test(v) ? v.slice(0, 10) : '' };
         const nh = s => nz(s).replace(/[^a-z0-9]/g, '');
-        const EXT = { numero: ['numero', 'processo', 'nprocesso', 'nodoprocesso'], orgao: ['orgao', 'interessado', 'orgaocedente', 'cedente'], recebedor: ['recebedor', 'orgaorecebedor', 'destino'], detalhe: ['motivo', 'motivodabaixa', 'assunto'], itens: ['itens', 'quantidade', 'qtd', 'qtdeitens'], doc: ['documento', 'ndocumento'], tram: ['entrada', 'dataentrada', 'datadeentrada', 'datadetramitacao'], status: ['status', 'situacao'], resp: ['responsavel'], concl: ['conclusao', 'dataconclusao'], obs: ['observacao', 'obs'], bem: ['bem', 'descricaodobem'], datadoc: ['datadodocumento'] };
+        const EXT = { numero: ['numero', 'processo', 'nprocesso', 'nodoprocesso'], descricao: ['descricao', 'descricaodoprocesso'], setor: ['setor', 'setoratual'], orgao: ['orgao', 'interessado', 'orgaocedente', 'cedente'], recebedor: ['recebedor', 'orgaorecebedor', 'destino'], detalhe: ['motivo', 'motivodabaixa', 'assunto'], itens: ['itens', 'quantidade', 'qtd', 'qtdeitens'], doc: ['documento', 'ndocumento'], tram: ['entrada', 'dataentrada', 'datadeentrada', 'datadetramitacao'], status: ['status', 'situacao'], resp: ['responsavel'], concl: ['conclusao', 'dataconclusao'], obs: ['observacao', 'obs'], bem: ['bem', 'descricaodobem'], datadoc: ['datadodocumento'] };
         let IMP = null;
         function openImp() { IMP = null; $('#dd').innerHTML = `<h2><span>Importar dados</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2><div class="fm"><label>Parte a importar<select id="ip" onchange="impPrev()"><option value="">Todos os tipos (conforme o arquivo)</option>${TIPOS.map(t => `<option>${t}</option>`).join('')}</select></label><label>Modo<select id="im" onchange="impPrev()"><option value="u">Adicionar e atualizar (não apaga nada)</option><option value="r">Substituir somente essa parte</option><option value="f">Substituir TUDO (restaurar backup)</option></select></label><label class="w">Arquivo (.xlsx ou backup .json)<input type="file" id="if" accept=".xlsx,.xlsm,.xls,.json" onchange="impRead()"></label><div class="w ib" id="ipv">Escolha o arquivo para ver a prévia antes de importar. Só a parte escolhida é alterada; as demais não são tocadas.</div></div><div class="ac"><button class="btn p" id="ig" disabled onclick="impGo()">${ic('up', 15)} Importar</button><button class="btn" onclick="$('#dd').close()">Cancelar</button></div>`; $('#dd').showModal() }
         async function impRead() { const f = $('#if').files[0]; if (!f) return; try { if (/\.json$/i.test(f.name)) { const j = JSON.parse(await f.text()); IMP = { rows: Array.isArray(j) ? j : j.processos, ls: Array.isArray(j) ? null : j.listas }; if (!Array.isArray(IMP.rows)) throw 0 } else IMP = { wb: XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true }) } } catch (e) { IMP = null; $('#ig').disabled = true; $('#ipv').textContent = 'Arquivo inválido.'; return } impPrev() }
@@ -1322,7 +1445,7 @@
             all.forEach(r => { if (!String(r.numero || '').trim()) return; const t = r.tipo ? TIPOS.find(x => nh(x).startsWith(nh(r.tipo).slice(0, 6))) : p; if (!t || (p && t != p)) { skip++; return } rs.push({ ...r, numero: String(r.numero).trim(), tipo: t }) });
             const key = r => r.numero + '|' + r.tipo, ex = new Set(D.map(r => r.numero.trim() + '|' + r.tipo)), ts = [...new Set(rs.map(r => r.tipo))]; let nw = 0, up = 0;[...new Map(rs.map(r => [key(r), r])).values()].forEach(r => ex.has(key(r)) ? up++ : nw++);
             const del = m == 'r' ? D.filter(r => ts.includes(r.tipo)).length : m == 'f' ? D.length : 0; IMP.rs = rs;
-            $('#ipv').innerHTML = `<b>${rs.length}</b> linha(s) válida(s) ${ts.length ? 'de: ' + ts.join(', ') : ''}.<br>` + (m == 'u' ? `${nw} nova(s) · ${up} já existente(s), que serão atualizadas (pelo nº do processo + tipo).` : m == 'r' ? `Serão removidos ${del} processo(s) existente(s) de ${ts.join(', ') || '—'} e inseridos ${rs.length}.` : `<b>Atenção:</b> apaga os ${del} processos atuais de todos os tipos e coloca ${rs.length}${IMP.ls ? ' (e restaura as listas do backup)' : ''}.`) + (m != 'f' ? '<br>As demais partes não serão alteradas.' : '') + (skip ? `<br>${skip} linha(s) ignorada(s) (sem nº ou de outro tipo).` : ''); $('#ig').disabled = !rs.length
+            $('#ipv').innerHTML = `<b>${rs.length}</b> linha(s) válida(s) ${ts.length ? 'de: ' + ts.join(', ') : ''}.<br>` + (m == 'u' ? `${nw} nova(s) · ${up} já existente(s), que serão atualizadas (pelo nº do processo + tipo).` : m == 'r' ? `Serão removidos ${del} processo(s) existente(s) de ${ts.join(', ') || '—'}, junto com o histórico deles, e inseridos ${rs.length}.` : `<b>Atenção:</b> apaga os ${del} processos atuais de todos os tipos, junto com todo o histórico registrado, e coloca ${rs.length}${IMP.ls ? ' (e restaura as listas do backup)' : ''}.`) + (m != 'f' ? '<br>As demais partes não serão alteradas.' : '') + (skip ? `<br>${skip} linha(s) ignorada(s) (sem nº ou de outro tipo).` : ''); $('#ig').disabled = !rs.length
         }
         function impGo() {
             const m = $('#im').value, p = m == 'f' ? '' : $('#ip').value, rs = IMP.rs; if (!rs.length) return;
@@ -1332,7 +1455,7 @@
             if (m == 'u') { new Map(rs.map(r => [r.numero + '|' + r.tipo, r])).forEach((r, k) => { const o = ex.get(k); if (!o) return news.push(r); const { id, ...old } = o, d = { ...old }; for (const c in r) if (r[c] !== '' && r[c] != null) d[c] = r[c]; if (r.status && r.status != old.status) d.mov = TS(); ups.push({ id, data: d }) }) } else rs.forEach(r => news.push(r));
             run(async () => { if (m == 'f') { await api({ op: 'bulk', items: news }); if (IMP.ls) { L = Object.assign(L, IMP.ls); await api({ op: 'listas', listas: L }) } } else await api({ op: 'merge', deltipos: m == 'r' ? (p ? [p] : ts) : [], updates: ups, news }); $('#dd').close(); LAST = ''; await load() })
         }
-        $('.sf').innerHTML = `<button onclick="xl()">${ic('xls', 17)} Planilha completa</button><button onclick="bk()">${ic('db', 17)} Backup (JSON)</button><button onclick="openImp()">${ic('up', 17)} Importar dados</button>`;
+        const sf = () => $('.sf').innerHTML = (ME ? `<div class="me"><b>${esc(ME.nome)}</b>${ME.perfil == 'admin' ? 'Administrador' : 'Servidor'}</div>` : '') + `<button onclick="xl()">${ic('xls', 17)} Planilha completa</button><button onclick="bk()">${ic('db', 17)} Backup (JSON)</button>${adm() ? `<button onclick="openImp()">${ic('up', 17)} Importar dados</button>` : ''}${ME ? `<button onclick="senha()">${ic('pen', 17)} Alterar minha senha</button><button onclick="sair()">${ic('x', 17)} Sair</button>` : ''}`; sf();
         $('.lg i').innerHTML = ic('bank', 22); $('#mb').innerHTML = ic('menu', 22); $('#bn').innerHTML = ic('plus', 16) + ' <span class="tp-t">Novo processo</span>';
         $('#bt').innerHTML = ic(document.documentElement.dataset.t == 'dark' ? 'sun' : 'moon', 17);
         document.addEventListener('click', e => { if (!e.target.closest('.gs')) $('#gd').hidden = true });
