@@ -30,7 +30,7 @@ function atLoad(silencioso) {
 function atScr() {
     const v = atView(), ab = v.filter(a => a.situacao != AT_FIM), m = TS().slice(0, 7), fm = v.filter(a => a.situacao == AT_FIM && (a.data_finalizacao || '').startsWith(m)), fz = v.filter(a => a.situacao == AT_FIM);
     const med = fz.length ? Math.round(fz.reduce((s, a) => s + a.dias, 0) / fz.length) : 0;
-    return head('Atendimentos', 'Atendimentos por e-mail, WhatsApp, presencial, Teams e ligação', `<button class="btn p" onclick="atEd(0)">${ic('plus', 16)} Novo atendimento</button>`)
+    return head('Atendimentos', 'Atendimentos por e-mail, WhatsApp, presencial, Teams e ligação', `${adm() ? `<button class="btn" onclick="atImp()">${ic('up', 16)} Importar planilha</button>` : ''}<button class="btn p" onclick="atEd(0)">${ic('plus', 16)} Novo atendimento</button>`)
         + `<div class="kp">${kc('chat', 'y', 'Em aberto', ab.length, { c: '', t: 'todos os atendentes' }, "atFiltra({andamento:'Em aberto'})")}${kc('user', '', 'Meus em aberto', ab.filter(a => ME && a.atendente_id == ME.id).length, null, 'atMeus()')}${kc('ok', 'g', 'Finalizados no mês', fm.length, null)}${kc('clock', 'v', 'Tempo médio até finalizar', med + ' dias', { c: '', t: fz.length + ' finalizado(s)' })}</div>`
         + `<div class="cd"><div class="tb"><div class="sr">${ic('search')}<input value="${esc(ATS.q)}" placeholder="Pesquisar por solicitante, órgão, assunto, descrição, atendente…" oninput="ATS.q=this.value;ATS.page=1;atList()"></div><button class="btn" onclick="ATS.open=!ATS.open;atList()">${ic('filter', 16)} Filtros <span class="cnt" id="fc"></span></button><button class="btn" onclick="atEx('x')">${ic('xls', 16)} Excel</button><button class="btn" onclick="atEx('p')">${ic('pdf', 16)} PDF</button></div><div id="fp"></div><div id="res"></div></div>`
 }
@@ -94,3 +94,66 @@ function atSv(id) {
 }
 function atFin(id) { const a = AT.find(x => x.id == id); if (!a) return; run(async () => { await api({ op: 'save', item: { ...a, situacao: AT_FIM, data_finalizacao: TS() } }, '/api/atendimentos'); await atLoad(1); atDet(id); if (tab == 'aten') draw() }) }
 function atRm(id) { if (confirm('Excluir este atendimento e o histórico dele?')) run(async () => { await api({ op: 'del', id }, '/api/atendimentos'); $('#dd').close(); await atLoad(1); if (tab == 'aten') draw() }) }
+
+// Importação de planilha de atendimentos (administrador). Colunas reconhecidas pelo nome do cabeçalho; os valores são convertidos para as listas do sistema
+// e cada ajuste aparece na prévia antes de gravar. O servidor valida de novo e ignora o que já foi importado.
+let ATI = null;
+const AT_IMP_COL = { data: ['data', 'datadoatendimento'], hora: ['hora'], orgao: ['sigla', 'orgao', 'orgaosigla'], solicitante: ['solicitante', 'nome'], contato: ['contato', 'email', 'telefone'], categoria: ['categoria'], assunto: ['assunto'], descricao: ['descricao'], canal: ['tipodecontato', 'canal', 'meio'], atendente: ['responsavel', 'atendente'], data_finalizacao: ['datadefinalizacao', 'finalizacao', 'datafinalizacao'], situacao: ['status', 'situacao'], obs: ['observacao', 'obs'] };
+const atImpCanal = v => ({ email: 'E-mail', whatsapp: 'WhatsApp', zap: 'WhatsApp', teams: 'Teams', telefone: 'Ligação', ligacao: 'Ligação', presencial: 'Presencial' })[nh(v)] || '';
+const atImpCat = v => ({ orientacao: 'Orientação', suporte: 'Suporte operacional', suporteoperacional: 'Suporte operacional' })[nh(v)] || '';
+const atImpSit = (v, fin) => { const n = nh(v); return !n ? (fin ? AT_FIM : 'Em atendimento') : /^(finalizado|concluido|resolvido)$/.test(n) ? AT_FIM : /retorno/.test(n) ? 'Aguardando retorno do solicitante' : /analise/.test(n) ? 'Aguardando análise interna' : /^(emandamento|ematendimento|pendente|aberto)$/.test(n) ? 'Em atendimento' : '' };
+// Data e hora pelo número de série do Excel, sem depender do fuso do navegador
+const atImpData = v => { if (typeof v == 'number' && v > 1) { const d = XLSX.SSF.parse_date_code(v); return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}` } return pd(v) };
+const atImpHora = v => { if (typeof v == 'number') { const m = Math.round((v % 1) * 1440) % 1440; return m ? `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` : '' } const x = String(v ?? '').trim().match(/^(\d{1,2})[:h](\d\d)/); return x && +x[1] < 24 && +x[2] < 60 && (+x[1] || +x[2]) ? `${x[1].padStart(2, '0')}:${x[2]}` : '' };
+function atImp() {
+    ATI = null;
+    $('#dd').innerHTML = `<h2><span>Importar atendimentos</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2><div class="fm"><label class="w">Planilha (.xlsx)<input type="file" id="ai_f" accept=".xlsx,.xls" onchange="atImpLer()"></label><div class="w ib" id="ai_pv">A primeira aba deve ter cabeçalho com as colunas DATA, HORA, SIGLA, SOLICITANTE, CATEGORIA, ASSUNTO, DESCRIÇÃO, TIPO DE CONTATO, RESPONSÁVEL, DATA DE FINALIZAÇÃO e STATUS. Nada é gravado antes de você conferir a prévia.</div></div><div class="ac"><button class="btn p" id="ai_go" disabled onclick="atImpGo()">${ic('up', 15)} Importar</button><button class="btn" onclick="$('#dd').close()">Cancelar</button></div>`;
+    if (!$('#dd').open) $('#dd').showModal()
+}
+async function atImpLer() {
+    const f = $('#ai_f').files[0]; if (!f) return;
+    try {
+        const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' }), m = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
+        const h = (m[0] || []).map(nh), ix = {}; Object.entries(AT_IMP_COL).forEach(([c, ns]) => ix[c] = h.findIndex(x => ns.includes(x)));
+        const falta = ['data', 'solicitante', 'categoria', 'canal', 'atendente'].filter(c => ix[c] < 0);
+        if (falta.length) throw new Error('coluna não encontrada: ' + falta.map(c => ({ canal: 'TIPO DE CONTATO', atendente: 'RESPONSÁVEL' })[c] || c.toUpperCase()).join(', '));
+        const g = (r, c) => ix[c] < 0 ? '' : r[ix[c]], t = (r, c) => { const v = String(g(r, c) ?? '').trim(); return /^([-–—.]+|n\/?a)$/i.test(v) ? '' : v }; // "-" e "N/A" contam como vazio
+        ATI = { linhas: m.slice(1).map((r, i) => [r, i + 2]).filter(([r]) => r.some(v => String(v).trim() !== '')).map(([r, n]) => {
+            const x = { linha: n, data: atImpData(g(r, 'data')), hora: atImpHora(g(r, 'hora')), orgao: t(r, 'orgao'), solicitante: t(r, 'solicitante'), contato: t(r, 'contato'), assunto: t(r, 'assunto'), descricao: t(r, 'descricao'), nome: t(r, 'atendente'), ajustes: [], erros: [], nota: '' };
+            const cat = t(r, 'categoria'), can = t(r, 'canal'), st = t(r, 'situacao'), fin = atImpData(g(r, 'data_finalizacao')), obs = t(r, 'obs');
+            x.categoria = atImpCat(cat); x.canal = atImpCanal(can); x.situacao = atImpSit(st, fin); x.data_finalizacao = x.situacao == AT_FIM ? fin : '';
+            if (!x.data) x.erros.push('data inválida'); else if (x.data > TS()) x.erros.push('data no futuro');
+            if (!x.categoria) x.erros.push(`categoria "${cat}" não reconhecida`);
+            if (!x.canal) x.erros.push(`tipo de contato "${can}" não reconhecido`);
+            if (!x.situacao) x.erros.push(`status "${st}" não reconhecido`);
+            if (!x.nome) x.erros.push('responsável vazio');
+            if (obs) x.descricao = (x.descricao ? x.descricao + '\n' : '') + 'Observação: ' + obs;
+            if (!x.solicitante) { x.solicitante = 'Não informado'; x.ajustes.push('solicitante vazio, gravado como "Não informado"') }
+            if (x.descricao.length < 3) { x.descricao = x.assunto.length >= 3 ? x.assunto : 'Não informada'; x.ajustes.push(`descrição vazia, gravada como "${x.descricao}"`) }
+            if (nh(st) == 'pendente') x.ajustes.push('status PENDENTE gravado como "Em atendimento"');
+            if (x.situacao == AT_FIM && !fin) { if (x.data) { x.data_finalizacao = x.data; x.ajustes.push('finalizado sem data de finalização: usada a data do atendimento') } }
+            else if (x.situacao == AT_FIM && x.data && fin < x.data) { x.data_finalizacao = x.data; x.nota = `A data de finalização da planilha (${fmt(fin)}) era anterior à do atendimento e foi substituída pela data do atendimento.`; x.ajustes.push(`finalização em ${fmt(fin)}, antes do atendimento: usada a data do atendimento`) }
+            if (fin && x.situacao != AT_FIM) x.ajustes.push(`não está finalizado: a data de finalização ${fmt(fin)} foi desconsiderada`);
+            return x
+        }) };
+        if (!ATI.linhas.length) throw new Error('a planilha não tem linhas preenchidas');
+        // Responsável da planilha -> usuário do sistema, pelo nome (sem acento e sem diferenciar maiúsculas)
+        ATI.map = {}; [...new Set(ATI.linhas.map(x => x.nome).filter(Boolean))].forEach(n => { const k = nz(n).trim(), u = ATU.filter(u => nz(u.nome).startsWith(k + ' ') || nz(u.nome) == k); ATI.map[n] = u.length == 1 ? u[0].id : '' });
+    } catch (e) { ATI = null; $('#ai_go').disabled = true; $('#ai_pv').textContent = 'Não foi possível ler a planilha: ' + (e.message || 'arquivo inválido') + '.'; return }
+    atImpPrev()
+}
+function atImpPrev() {
+    const l = ATI.linhas, er = l.filter(x => x.erros.length), aj = l.filter(x => x.ajustes.length), sm = Object.values(ATI.map).some(v => !v), cont = k => Object.entries(l.reduce((o, x) => (o[x[k]] = (o[x[k]] || 0) + 1, o), {})).map(([v, n]) => `${esc(v || '—')}: ${n}`).join(' · ');
+    const lista = (xs, f) => `<div class="pl" style="max-height:180px;margin-top:6px;font-size:12.5px">${xs.map(x => `<div style="padding:4px 0;border-bottom:1px solid var(--bd)"><b>Linha ${x.linha}</b> (${esc(x.orgao)}, ${esc(x.solicitante)}): ${esc(f(x).join('; '))}</div>`).join('')}</div>`;
+    $('#ai_pv').innerHTML = `<b>${l.length} linha(s) encontradas</b>, de ${fmt(l.map(x => x.data).filter(Boolean).sort()[0] || '')} a ${fmt(l.map(x => x.data).filter(Boolean).sort().pop() || '')}.<br><small>Situação: ${cont('situacao')}<br>Categoria: ${cont('categoria')}<br>Canal: ${cont('canal')}</small>`
+        + `<div style="margin-top:12px"><b>Responsável na planilha → usuário do Hub</b>${Object.keys(ATI.map).map(n => `<label style="display:flex;gap:8px;align-items:center;margin-top:6px"><span style="min-width:120px">${esc(n)} (${l.filter(x => x.nome == n).length})</span><select style="flex:1" onchange="ATI.map[${esc(JSON.stringify(n))}]=+this.value||'';atImpPrev()"><option value="">Escolha o usuário…</option>${ATU.map(u => `<option value="${u.id}" ${ATI.map[n] == u.id ? 'selected' : ''}>${esc(u.nome)}</option>`).join('')}</select></label>`).join('')}${sm ? '<p class="nt" style="margin:6px 0 0">Se a pessoa ainda não tem usuário, cadastre em Usuários e Log e abra a importação de novo.</p>' : ''}</div>`
+        + (er.length ? `<div style="margin-top:12px;color:var(--er)"><b>${er.length} linha(s) com erro.</b> Corrija na planilha e escolha o arquivo de novo. Nada será importado enquanto houver erro.${lista(er, x => x.erros)}</div>` : '')
+        + (aj.length ? `<div style="margin-top:12px"><b>${aj.length} linha(s) serão ajustadas</b> (o ajuste fica registrado no histórico de cada atendimento):${lista(aj, x => x.ajustes)}</div>` : '')
+        + `<p class="nt" style="margin:12px 0 0">Atendimentos que já estiverem no Hub (mesma data, hora, órgão, solicitante, assunto, descrição e atendente) são ignorados, então importar o mesmo arquivo de novo não duplica.</p>`;
+    $('#ai_go').disabled = !!(er.length || sm); $('#ai_go').innerHTML = `${ic('up', 15)} Importar ${l.length} atendimento(s)`
+}
+function atImpGo() {
+    if (!ATI || !confirm(`Importar ${ATI.linhas.length} atendimento(s)?`)) return;
+    const itens = ATI.linhas.map(x => ({ linha: x.linha, data: x.data, hora: x.hora, orgao: x.orgao, solicitante: x.solicitante, contato: x.contato, categoria: x.categoria, assunto: x.assunto, descricao: x.descricao, canal: x.canal, atendente_id: ATI.map[x.nome], situacao: x.situacao, data_finalizacao: x.data_finalizacao, nota: x.nota }));
+    umaVez(async () => { const j = await api({ op: 'importar', itens }, '/api/atendimentos'); $('#dd').close(); ATI = null; await atLoad(); alert(`${j.importados} atendimento(s) importado(s).` + (j.ignorados ? ` ${j.ignorados} já estavam no Hub e foram ignorados.` : '')); draw() })
+}

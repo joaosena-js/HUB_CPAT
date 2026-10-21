@@ -1,5 +1,30 @@
 # Hub DBM: entrega
 
+## Versão 6.2: importação de atendimentos por planilha
+
+Em **Atendimentos**, o administrador tem o botão **Importar planilha**. O fluxo:
+1. Escolha o arquivo .xlsx. A primeira aba precisa ter cabeçalho com DATA, HORA, SIGLA, SOLICITANTE, CATEGORIA, ASSUNTO, DESCRIÇÃO, TIPO DE CONTATO, RESPONSÁVEL, DATA DE FINALIZAÇÃO e STATUS (OBSERVAÇÃO é opcional e vai para a descrição).
+2. A prévia mostra o total de linhas, o período e a contagem por situação, categoria e canal. Nada é gravado nesse momento.
+3. Cada nome da coluna RESPONSÁVEL é ligado a um usuário do Hub. O sistema sugere pelo primeiro nome e você confirma ou troca. A pessoa precisa ter usuário ativo; se não tiver, cadastre em Usuários e Log antes.
+4. Linhas com erro (data inválida, categoria ou tipo de contato desconhecido) bloqueiam a importação inteira e aparecem com o número da linha. Linhas que precisam de ajuste aparecem na lista de ajustes.
+5. Ao importar, cada atendimento ganha no histórico a anotação "importado da planilha (linha N)", com o ajuste feito, se houver.
+
+Conversões: SUPORTE vira "Suporte operacional"; TELEFONE vira "Ligação"; FINALIZADO vira "Finalizado"; EM ANDAMENTO e PENDENTE viram "Em atendimento"; hora 00:00 ou "-" fica em branco.
+
+Ajustes automáticos (sempre listados na prévia): solicitante vazio ou "-" vira "Não informado"; descrição vazia recebe o assunto; data de finalização anterior à data do atendimento é trocada pela data do atendimento (a data original fica anotada no histórico); data de finalização em atendimento não finalizado é desconsiderada.
+
+Importar o mesmo arquivo de novo não duplica: atendimentos com mesma data, hora, órgão, solicitante, assunto, descrição e atendente que já estão no Hub são ignorados. Linhas iguais dentro da mesma planilha são mantidas, porque podem ser pedidos diferentes. A gravação é feita numa única operação: se der erro, nada fica pela metade. Só o administrador pode importar (conferido no servidor) e a importação fica no Log.
+
+| Arquivo | Situação |
+|---|---|
+| `api/atendimentos.js` | alterado (operação de importação) |
+| `js/atendimentos.js` | alterado (botão, prévia e correspondência de responsáveis) |
+| `js/usuarios.js` | alterado (nome da ação no Log) |
+
+Publicação: substitua os arquivos (ou aplique `hub-dbm-v6.2.patch` com `git am --keep-cr` sobre a v6.1) e faça o push. Não há tabela nem variável nova.
+
+---
+
 ## Versão 6.1: outro evento e aniversário no calendário
 
 **Outro evento:** para o que não é reunião nem treinamento (confraternização, visita técnica, palestra, ação de extensão). Tem título, datas, horário, local, participantes da equipe e externos, descrição e anexos (fotos e documentos). Pode ser cancelado e entra no relatório Agenda da equipe, contando qualquer arquivo anexado como registro. Cor roxa no calendário.

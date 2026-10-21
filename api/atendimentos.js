@@ -94,6 +94,40 @@ module.exports = async (req, res) => {
       return res.json({ id: r.id });
     }
 
+    // Importação de planilha (só administrador). O navegador já converteu as colunas; aqui cada linha passa pela mesma validação do cadastro.
+    // Tudo ou nada: com qualquer linha inválida, nada é gravado. Linhas que já existem no banco são ignoradas, então importar de novo não duplica.
+    if (b.op === 'importar') {
+      if (!adm) throw new Erro('Seu perfil não tem permissão para esta ação', 403);
+      const itens = Array.isArray(b.itens) ? b.itens : [];
+      if (!itens.length) throw new Erro('Nenhuma linha para importar');
+      if (itens.length > 3000) throw new Erro('Importe no máximo 3.000 linhas por vez');
+      const l = itens.map((x, i) => {
+        try { const a = validar({ ...x, processo_numero: '' }); return { ...a, linha: +x.linha || i + 2, nota: txt(x.nota, 300, 'Observação da importação') } }
+        catch (e) { throw new Erro(`Linha ${+x.linha || i + 2}: ${e.message}`) }
+      });
+      const ids = [...new Set(l.map(a => a.atendente_id))], at = await sql`select id from usuarios where id = any(${ids}::int[]) and ativo`;
+      if (at.length !== ids.length) throw new Erro('Há atendente não encontrado ou inativo. Confira a correspondência dos responsáveis.');
+      // Mesma data, hora, órgão, solicitante, assunto, descrição e atendente = mesmo atendimento. Conta as repetições para não descartar linhas iguais legítimas.
+      const k = a => [a.data, a.hora || '', a.orgao, a.solicitante, a.assunto, a.descricao].map(v => String(v).trim().toLowerCase()).join('|') + '|' + a.atendente_id;
+      const datas = l.map(a => a.data).sort(), ja = {};
+      (await sql`select to_char(data, 'YYYY-MM-DD') as data, to_char(hora, 'HH24:MI') as hora, orgao, solicitante, assunto, descricao, atendente_id from atendimentos where data between ${datas[0]} and ${datas[datas.length - 1]}`).forEach(a => ja[k(a)] = (ja[k(a)] || 0) + 1);
+      const novos = l.filter(a => { const c = k(a); if (ja[c]) { ja[c]--; return false } return true });
+      if (novos.length) {
+        const seq = (await sql`select nextval(pg_get_serial_sequence('atendimentos', 'id'))::int as id from generate_series(1, ${novos.length}::int)`).map(x => x.id);
+        const col = f => novos.map(f), hj = hoje();
+        // Uma única instrução grava os atendimentos e o histórico de cada um (se falhar, nada fica gravado)
+        await sql`with ins as (insert into atendimentos(id, data, hora, orgao, solicitante, contato, categoria, assunto, descricao, canal, atendente_id, situacao, data_finalizacao, criado_por)
+            select x.*, ${me.id}::int from unnest(${seq}::int[], ${col(a => a.data)}::date[], ${col(a => a.hora || null)}::time[], ${col(a => a.orgao)}::text[], ${col(a => a.solicitante)}::text[], ${col(a => a.contato)}::text[],
+              ${col(a => a.categoria)}::text[], ${col(a => a.assunto)}::text[], ${col(a => a.descricao)}::text[], ${col(a => a.canal)}::text[], ${col(a => a.atendente_id)}::int[], ${col(a => a.situacao)}::text[], ${col(a => a.data_finalizacao)}::date[]) as x
+            returning id)
+          insert into historico(atendimento_id, data, descricao, automatico, usuario_id, usuario_nome)
+            select h.id, ${hj}::date, h.d, true, ${me.id}::int, ${me.nome}::text from unnest(${seq}::int[], ${col(a => `Atendimento importado da planilha (linha ${a.linha}) com situação "${a.situacao}".` + (a.nota ? ' ' + a.nota : ''))}::text[]) as h(id, d)
+            where h.id in (select id from ins)`;
+      }
+      await registrar(me, 'atendimentos_importados', `${novos.length} importado(s), ${l.length - novos.length} já existente(s) ignorado(s)`);
+      return res.json({ importados: novos.length, ignorados: l.length - novos.length });
+    }
+
     if (b.op === 'del') {
       if (!adm) throw new Erro('Seu perfil não tem permissão para esta ação', 403);
       const r = (await sql`delete from atendimentos where id = ${+b.id || 0} returning id, solicitante`)[0];
