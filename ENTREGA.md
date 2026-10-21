@@ -1,5 +1,23 @@
 # Hub DBM: entrega
 
+## Versão 5.1: feriados e pontos facultativos
+
+No Calendário, o administrador passa a lançar **Feriado ou ponto facultativo**: clique em Novo evento, escolha esse tipo, informe o nome, a classificação (Feriado nacional, estadual, municipal ou Ponto facultativo), a data de início e fim e, se quiser, o ato ou observação (ex.: o decreto). Para vários dias seguidos, basta um lançamento com início e fim.
+
+- Aparece em vermelho, no topo do dia, e o número do dia fica vermelho. Continua aparecendo quando se filtra por servidor, porque vale para todos.
+- Ao marcar reunião ou treinamento em feriado ou ponto facultativo, o detalhe mostra um aviso. Não impede salvar.
+- Só o administrador lança, altera e exclui (regra conferida no servidor). Servidores apenas visualizam.
+- O sistema não traz a lista de feriados pronta: as datas de ponto facultativo mudam a cada ano conforme decreto, então o lançamento é feito pelo administrador a partir do calendário oficial.
+
+| Arquivo | Situação |
+|---|---|
+| `api/eventos.js`, `js/calendario.js`, `lib/comum.js`, `index.html` | alterados |
+| `db/migracao_004_feriados.sql` | novo (coluna `classificacao` e novo tipo permitido em `eventos`) |
+
+Publicação: substitua os arquivos (ou aplique `hub-dbm-v5.1.patch` com `git am --keep-cr` sobre a v5) e faça o push. O banco é ajustado sozinho na primeira requisição; não há variável nova.
+
+---
+
 ## Versão 5: Calendário
 
 Novo grupo **Calendário** no menu, com a tela **Calendário da equipe**, disponível para todos os usuários.

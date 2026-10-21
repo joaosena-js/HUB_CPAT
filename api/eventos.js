@@ -1,8 +1,12 @@
 const crypto = require('crypto');
 const { Erro, ehData, txt, iniciar, usuarioDaSessao, semSessao, tratarErro } = require('../lib/comum');
 
-const TIPOS = ['Reunião', 'Treinamento', 'Férias', 'Agenda do servidor'];
+const FERIADO = 'Feriado ou ponto facultativo';
+const TIPOS = ['Reunião', 'Treinamento', 'Férias', 'Agenda do servidor', FERIADO];
 const PESSOAIS = ['Férias', 'Agenda do servidor'];
+const CLASSES = ['Feriado nacional', 'Feriado estadual', 'Feriado municipal', 'Ponto facultativo'];
+// Grupo do tipo: um evento não muda de grupo ao ser editado
+const grupo = t => PESSOAIS.includes(t) ? 'P' : t === FERIADO ? 'H' : 'E';
 const ROTULOS = ['Ausente', 'Compromisso pessoal']; // o que a equipe vê na agenda do servidor
 const CATEGORIAS = ['Foto', 'ATA', 'Lista de presença', 'Outro documento'];
 const ARQUIVOS = { 'application/pdf': ['pdf'], 'image/jpeg': ['jpg', 'jpeg'], 'image/png': ['png'] };
@@ -29,14 +33,15 @@ async function primeirosBytes(stream, n = 1024) {
 }
 
 const consultar = (sql, id) => sql`select e.id, e.tipo, e.titulo, to_char(e.inicio, 'YYYY-MM-DD') as inicio, to_char(e.fim, 'YYYY-MM-DD') as fim, to_char(e.hora_inicio, 'HH24:MI') as hora_inicio, to_char(e.hora_fim, 'HH24:MI') as hora_fim,
-    e.local, e.pauta, e.participantes_externos, e.carga_horaria::float as carga_horaria, e.servidor_id, s.nome as servidor, e.motivo, e.cancelado, e.criado_por, c.nome as criado_por_nome,
+    e.local, e.pauta, e.classificacao, e.participantes_externos, e.carga_horaria::float as carga_horaria, e.servidor_id, s.nome as servidor, e.motivo, e.cancelado, e.criado_por, c.nome as criado_por_nome,
     coalesce((select array_agg(p.usuario_id order by p.usuario_id) from evento_participantes p where p.evento_id = e.id), '{}') as participantes,
     coalesce((select json_object_agg(z.categoria, z.n) from (select categoria, count(*)::int as n from evento_anexos x where x.evento_id = e.id and x.confirmado group by categoria) z), '{}') as anexos
   from eventos e left join usuarios s on s.id = e.servidor_id left join usuarios c on c.id = e.criado_por
   where ${id}::int = 0 or e.id = ${id}::int
   order by e.inicio, e.hora_inicio nulls first, e.id`;
 
-const podeEditar = (e, me) => me.perfil === 'admin' || e.criado_por === me.id || (PESSOAIS.includes(e.tipo) && e.servidor_id === me.id);
+// Feriado vale para toda a equipe: só o administrador lança, altera e exclui
+const podeEditar = (e, me) => me.perfil === 'admin' || (e.tipo !== FERIADO && (e.criado_por === me.id || (PESSOAIS.includes(e.tipo) && e.servidor_id === me.id)));
 // Motivo da agenda do servidor: só o próprio servidor, quem lançou e o administrador veem
 const veMotivo = (e, me) => me.perfil === 'admin' || e.servidor_id === me.id || e.criado_por === me.id;
 const publico = (e, me) => e.tipo === 'Agenda do servidor' && !veMotivo(e, me) ? { ...e, motivo: '', reservado: true } : e;
@@ -48,7 +53,7 @@ function validar(item, me) {
     tipo, titulo: txt(item.titulo, 200, 'Título'), inicio: String(item.inicio || ''), fim: String(item.fim || item.inicio || ''),
     hora_inicio: String(item.hora_inicio || ''), hora_fim: String(item.hora_fim || ''), local: txt(item.local, 300, 'Local'), pauta: txt(item.pauta, 4000, 'Pauta'),
     participantes_externos: txt(item.participantes_externos, 1000, 'Participantes externos'), carga_horaria: null, servidor_id: +item.servidor_id || null,
-    motivo: txt(item.motivo, 500, 'Motivo'), cancelado: !!item.cancelado,
+    motivo: txt(item.motivo, 500, 'Motivo'), cancelado: !!item.cancelado, classificacao: String(item.classificacao || ''),
     participantes: [...new Set((Array.isArray(item.participantes) ? item.participantes : []).map(Number).filter(n => Number.isInteger(n) && n > 0))],
   };
   if (!ehData(e.inicio) || !ehData(e.fim)) throw new Erro('Informe datas válidas de início e fim');
@@ -58,6 +63,14 @@ function validar(item, me) {
   if (e.hora_fim && !e.hora_inicio) throw new Erro('Informe a hora de início');
   if (e.hora_fim && e.inicio === e.fim && e.hora_fim <= e.hora_inicio) throw new Erro('A hora de fim deve ser depois da hora de início');
   if (e.participantes.length > 100) throw new Erro('Limite de 100 participantes');
+  if (tipo === FERIADO) {
+    if (me.perfil !== 'admin') throw new Erro('Somente o administrador lança feriados e pontos facultativos', 403);
+    if (e.titulo.length < 3) throw new Erro('Informe o nome do feriado ou ponto facultativo');
+    if (!CLASSES.includes(e.classificacao)) throw new Erro('Escolha a classificação');
+    Object.assign(e, { hora_inicio: '', hora_fim: '', local: '', participantes_externos: '', participantes: [], servidor_id: null, motivo: '', cancelado: false });
+    return e;
+  }
+  e.classificacao = '';
   if (PESSOAIS.includes(tipo)) {
     if (!e.servidor_id) throw new Erro('Escolha o servidor');
     if (me.perfil !== 'admin' && e.servidor_id !== me.id) throw new Erro('Você só pode lançar férias e agenda para você mesmo', 403);
@@ -83,7 +96,9 @@ async function avisos(sql, id, e) {
         where x.tipo = 'Férias' and x.id <> ${id} and x.servidor_id <> ${e.servidor_id} and x.inicio <= ${e.fim} and x.fim >= ${e.inicio} order by x.inicio`
     : fora.length ? await sql`select s.nome, x.tipo, to_char(x.inicio, 'DD/MM/YYYY') as de, to_char(x.fim, 'DD/MM/YYYY') as ate from eventos x join usuarios s on s.id = x.servidor_id
         where x.tipo in ('Férias', 'Agenda do servidor') and x.servidor_id = any(${fora}::int[]) and x.inicio <= ${e.fim} and x.fim >= ${e.inicio} order by s.nome` : [];
-  return r.map(x => e.tipo === 'Férias' ? `As férias coincidem com as de ${x.nome} (${x.de} a ${x.ate}).` : `${x.nome} estará ${x.tipo === 'Férias' ? 'de férias' : 'ausente'} de ${x.de} a ${x.ate}.`);
+  const f = grupo(e.tipo) === 'E' ? await sql`select titulo, classificacao, to_char(inicio, 'DD/MM/YYYY') as de, to_char(fim, 'DD/MM/YYYY') as ate from eventos where tipo = ${FERIADO} and inicio <= ${e.fim} and fim >= ${e.inicio} order by inicio` : [];
+  return [...f.map(x => `${x.de === x.ate ? x.de : x.de + ' a ' + x.ate}: ${x.classificacao} (${x.titulo}).`),
+    ...r.map(x => e.tipo === 'Férias' ? `As férias coincidem com as de ${x.nome} (${x.de} a ${x.ate}).` : `${x.nome} estará ${x.tipo === 'Férias' ? 'de férias' : 'ausente'} de ${x.de} a ${x.ate}.`)];
 }
 
 module.exports = async (req, res) => {
@@ -109,13 +124,13 @@ module.exports = async (req, res) => {
       let novo = id;
       if (id) {
         const old = await evento(id); exigeEdicao(old);
-        if (PESSOAIS.includes(old.tipo) !== PESSOAIS.includes(e.tipo)) throw new Erro('Não é possível transformar férias ou agenda em reunião ou treinamento. Exclua e lance de novo.');
-        await sql`update eventos set tipo = ${e.tipo}, titulo = ${e.titulo}, inicio = ${e.inicio}, fim = ${e.fim}, hora_inicio = ${e.hora_inicio || null}, hora_fim = ${e.hora_fim || null}, local = ${e.local}, pauta = ${e.pauta},
+        if (grupo(old.tipo) !== grupo(e.tipo)) throw new Erro('Não é possível trocar o evento para este tipo. Exclua e lance de novo.');
+        await sql`update eventos set tipo = ${e.tipo}, titulo = ${e.titulo}, inicio = ${e.inicio}, fim = ${e.fim}, hora_inicio = ${e.hora_inicio || null}, hora_fim = ${e.hora_fim || null}, local = ${e.local}, pauta = ${e.pauta}, classificacao = ${e.classificacao},
           participantes_externos = ${e.participantes_externos}, carga_horaria = ${e.carga_horaria}, servidor_id = ${e.servidor_id}, motivo = ${e.motivo}, cancelado = ${e.cancelado}, atualizado_em = now() where id = ${id}`;
         await sql`delete from evento_participantes where evento_id = ${id}`;
       } else {
-        novo = (await sql`insert into eventos(tipo, titulo, inicio, fim, hora_inicio, hora_fim, local, pauta, participantes_externos, carga_horaria, servidor_id, motivo, cancelado, criado_por)
-          values (${e.tipo}, ${e.titulo}, ${e.inicio}, ${e.fim}, ${e.hora_inicio || null}, ${e.hora_fim || null}, ${e.local}, ${e.pauta}, ${e.participantes_externos}, ${e.carga_horaria}, ${e.servidor_id}, ${e.motivo}, ${e.cancelado}, ${me.id}) returning id`)[0].id;
+        novo = (await sql`insert into eventos(tipo, titulo, inicio, fim, hora_inicio, hora_fim, local, pauta, classificacao, participantes_externos, carga_horaria, servidor_id, motivo, cancelado, criado_por)
+          values (${e.tipo}, ${e.titulo}, ${e.inicio}, ${e.fim}, ${e.hora_inicio || null}, ${e.hora_fim || null}, ${e.local}, ${e.pauta}, ${e.classificacao}, ${e.participantes_externos}, ${e.carga_horaria}, ${e.servidor_id}, ${e.motivo}, ${e.cancelado}, ${me.id}) returning id`)[0].id;
       }
       if (e.participantes.length) await sql`insert into evento_participantes(evento_id, usuario_id) select ${novo}, unnest(${e.participantes}::int[])`;
       const r = await evento(novo);
@@ -143,7 +158,7 @@ module.exports = async (req, res) => {
     // (2) o navegador envia o arquivo direto ao Blob; (3) o servidor confere o arquivo recebido e só então o anexo aparece.
     if (b.op === 'anexo_preparar') {
       const e = await evento(b.id); exigeEdicao(e);
-      if (PESSOAIS.includes(e.tipo)) throw new Erro('Anexos são usados somente em reuniões e treinamentos');
+      if (grupo(e.tipo) !== 'E') throw new Erro('Anexos são usados somente em reuniões e treinamentos');
       const categoria = String(b.categoria || ''), nome = txt(b.nome, 200, 'Nome do arquivo').replace(/[\u0000-\u001f]/g, ''), tipo = String(b.tipo || ''), tamanho = +b.tamanho || 0;
       const ext = (/\.([a-z0-9]+)$/i.exec(nome) || [])[1]?.toLowerCase();
       if (!CATEGORIAS.includes(categoria)) throw new Erro('Escolha o tipo do anexo');
