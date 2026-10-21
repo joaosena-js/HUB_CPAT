@@ -1,50 +1,10 @@
-const { neon } = require('@neondatabase/serverless');
-const crypto = require('crypto');
+const { Erro, hoje, ehData, txt, gerarHash, HASH_FALSO, confere, igual, emitir, encerrar, iniciar, usuarioDaSessao, semSessao, tratarErro } = require('../lib/comum');
 
 const TIPOS = ['Transferência', 'Alienação', 'Caixa do setor'];
 const CAMPOS = ['numero', 'descricao', 'tipo', 'tram', 'orgao', 'recebedor', 'destino', 'detalhe', 'itens', 'doc', 'datadoc', 'status', 'resp', 'setor', 'concl', 'mov', 'obs', 'bem'];
 const DATAS = ['tram', 'datadoc', 'concl', 'mov'];
-const LISTAS = ['status', 'resp', 'orgaos', 'motivos', 'assuntos'];
-const SESSAO_HORAS = 12, MAX_FALHAS = 5;
-
-class Erro extends Error { constructor(m, s = 400) { super(m); this.s = s } }
-const hoje = (mais = 0) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Manaus' }).format(new Date(Date.now() + mais));
-const ehData = v => /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v));
-const txt = (v, max, nome) => { v = String(v ?? '').trim(); if (v.length > max) throw new Erro(`${nome} deve ter no máximo ${max} caracteres`); return v };
-
-// Banco: cria as tabelas uma vez por instância (mesma ideia do código original, sem repetir a cada requisição)
-let pronto = null;
-function schema(sql) {
-  return pronto || (pronto = (async () => {
-    await sql`create table if not exists processos(id serial primary key, data jsonb not null)`;
-    await sql`create table if not exists listas(k text primary key, v jsonb not null)`;
-    await sql`create table if not exists usuarios(id serial primary key, login text not null unique, nome text not null, responsavel text not null default '', perfil text not null default 'servidor' check (perfil in ('admin', 'servidor')), senha_hash text not null, ativo boolean not null default true, versao int not null default 1, ultimo_acesso timestamptz, criado_em timestamptz not null default now())`;
-    await sql`create table if not exists historico(id serial primary key, processo_id int not null references processos(id) on delete cascade, data date not null, descricao text not null, automatico boolean not null default false, usuario_id int references usuarios(id), usuario_nome text not null, criado_em timestamptz not null default now())`;
-    await sql`create index if not exists historico_processo on historico(processo_id)`;
-    await sql`create table if not exists log_atividades(id bigserial primary key, criado_em timestamptz not null default now(), usuario_id int references usuarios(id), usuario_nome text not null default '', acao text not null, detalhe text not null default '', ip text not null default '')`;
-    await sql`create index if not exists log_atividades_data on log_atividades(criado_em desc)`;
-  })().catch(e => { pronto = null; throw e }));
-}
-
-// Senhas: scrypt nativo do Node, com sal aleatório por usuário
-const gerarHash = s => new Promise((ok, no) => { const sal = crypto.randomBytes(16); crypto.scrypt(s, sal, 64, (e, k) => e ? no(e) : ok(`scrypt$${sal.toString('hex')}$${k.toString('hex')}`)) });
-const HASH_FALSO = 'scrypt$' + '0'.repeat(32) + '$' + '0'.repeat(128);
-const confere = (s, h) => new Promise(ok => { const [, sal, k] = String(h).split('$'); if (!sal || !k) return ok(false); crypto.scrypt(s, Buffer.from(sal, 'hex'), 64, (e, d) => ok(!e && crypto.timingSafeEqual(d, Buffer.from(k, 'hex')))) });
-const igual = (a, b) => { const x = crypto.createHash('sha256').update(String(a)).digest(), y = crypto.createHash('sha256').update(String(b)).digest(); return crypto.timingSafeEqual(x, y) };
-
-// Sessão: token assinado (HMAC) em cookie HttpOnly. "versao" invalida tokens antigos quando a senha muda ou o usuário é desativado.
-const assina = p => crypto.createHmac('sha256', process.env.SESSION_SECRET).update(p).digest('base64url');
-function emitir(res, u) {
-  const p = Buffer.from(JSON.stringify({ u: u.id, v: u.versao, i: Date.now(), e: Date.now() + SESSAO_HORAS * 36e5 })).toString('base64url');
-  res.setHeader('Set-Cookie', `hub_sessao=${p}.${assina(p)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSAO_HORAS * 3600}`);
-}
-const encerrar = res => res.setHeader('Set-Cookie', 'hub_sessao=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0');
-function lerSessao(req) {
-  const m = /(?:^|;\s*)hub_sessao=([^;]+)/.exec(req.headers.cookie || ''); if (!m) return null;
-  const [p, s] = m[1].split('.'); if (!p || !s) return null;
-  const a = Buffer.from(assina(p)), b = Buffer.from(s); if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  try { const o = JSON.parse(Buffer.from(p, 'base64url').toString()); return o.e > Date.now() ? o : null } catch (e) { return null }
-}
+const LISTAS = ['status', 'resp', 'orgaos', 'motivos', 'assuntos'], LISTAS_OPCIONAIS = ['assuntos_at'];
+const MAX_FALHAS = 5;
 
 function limparProcesso(item) {
   const d = {};
@@ -73,17 +33,9 @@ function validarUsuario(b, novo) {
 }
 
 module.exports = async (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) return res.status(500).json({ error: 'Defina a variável SESSION_SECRET (mínimo 32 caracteres) na Vercel' });
-  if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
-  // Cabeçalho próprio + cookie SameSite=Strict: impede que outro site dispare ações em nome do usuário (CSRF)
-  if (req.method === 'POST' && req.headers['x-hub'] !== '1') return res.status(403).json({ error: 'Requisição recusada' });
-  const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
   try {
-    const sql = neon(process.env.DATABASE_URL);
-    await schema(sql);
-    const b = req.method === 'POST' ? (typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})) : {};
-    const registrar = (u, acao, detalhe = '') => sql`insert into log_atividades(usuario_id, usuario_nome, acao, detalhe, ip) values (${u ? u.id : null}, ${u ? u.nome : ''}, ${acao}, ${String(detalhe).slice(0, 500)}, ${ip})`;
+    const ctx = await iniciar(req, res); if (!ctx) return;
+    const { sql, b, registrar } = ctx;
 
     if (b.op === 'login') {
       const login = String(b.login || '').trim().toLowerCase(), senha = String(b.senha || '');
@@ -108,20 +60,16 @@ module.exports = async (req, res) => {
       emitir(res, u); return res.json({ ok: 1 });
     }
 
-    const s = lerSessao(req);
-    const me = s && (await sql`select id, login, nome, responsavel, perfil from usuarios where id = ${s.u} and versao = ${s.v} and ativo`)[0];
+    const me = await usuarioDaSessao(sql, req);
     if (b.op === 'logout') { if (me) await registrar(me, 'logout'); encerrar(res); return res.json({ ok: 1 }) }
-    if (!me) {
-      const n = await sql`select count(*)::int n from usuarios`;
-      encerrar(res); return res.status(401).json({ error: 'Sessão encerrada. Entre novamente.', setup: n[0].n === 0 });
-    }
+    if (!me) return semSessao(sql, res);
     const adm = me.perfil === 'admin';
     const soAdmin = () => { if (!adm) throw new Erro('Seu perfil não tem permissão para esta ação', 403) };
 
     if (req.method === 'GET') {
       const p = await sql`select id, data from processos order by id`;
       const l = await sql`select v from listas where k = 'main'`;
-      return res.json({ processos: p.map(r => ({ ...r.data, id: r.id })), listas: l[0] ? l[0].v : null, me: { ...me, sessao: s.i } });
+      return res.json({ processos: p.map(r => ({ ...r.data, id: r.id })), listas: l[0] ? l[0].v : null, me });
     }
 
     if (b.op === 'save') {
@@ -175,7 +123,7 @@ module.exports = async (req, res) => {
 
     if (b.op === 'listas') {
       const l = b.listas || {}, v = {};
-      for (const k of LISTAS) { if (!Array.isArray(l[k]) || l[k].length > 3000) throw new Erro('Lista inválida: ' + k); v[k] = l[k].map(x => txt(x, 200, 'Item da lista')).filter(Boolean) }
+      for (const k of [...LISTAS, ...LISTAS_OPCIONAIS]) { if (LISTAS_OPCIONAIS.includes(k) && l[k] == null) continue; if (!Array.isArray(l[k]) || l[k].length > 3000) throw new Erro('Lista inválida: ' + k); v[k] = l[k].map(x => txt(x, 200, 'Item da lista')).filter(Boolean) }
       if (l.cfg) { const a = +l.cfg.atencao, c = +l.cfg.critico; if (!(a > 0 && c > 0)) throw new Erro('Prazos de criticidade inválidos'); v.cfg = { atencao: Math.round(a), critico: Math.round(c) } }
       await sql`insert into listas(k, v) values ('main', ${JSON.stringify(v)}::jsonb) on conflict (k) do update set v = excluded.v`;
       await registrar(me, 'listas', 'Cadastros e parâmetros');
@@ -246,9 +194,5 @@ module.exports = async (req, res) => {
     }
 
     throw new Erro('Operação inválida');
-  } catch (e) {
-    if (e instanceof Erro) return res.status(e.s).json({ error: e.message });
-    console.error(e);
-    res.status(500).json({ error: 'Erro interno no servidor. Tente novamente.' });
-  }
+  } catch (e) { tratarErro(res, e) }
 };

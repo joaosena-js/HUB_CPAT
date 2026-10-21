@@ -1,4 +1,54 @@
-# Hub DBM: entrega dos ajustes da Gestão de Processos
+# Hub DBM: entrega
+
+## Versão 3: Gestão de Atendimentos e ajustes de layout
+
+Esta versão inclui tudo da versão 2 (descrita mais abaixo) e acrescenta:
+
+**Ajustes pedidos**
+- Filtros: cada campo fica dentro da sua coluna; texto longo é cortado com reticências, sem invadir o campo ao lado.
+- Assunto não usa mais o texto da Observação. Agora vem do Motivo/Assunto do processo; se estiver vazio, da Descrição; se também estiver vazia, do tipo do processo.
+- Rolagem: barra fina e discreta, nas cores do tema claro e escuro; nos modais, o título fica fixo no topo enquanto o conteúdo rola.
+
+**Módulo Gestão de Atendimentos** (menu agora agrupado em Gestão de Processos, Gestão de Atendimentos e Administração)
+- Registro com data, hora, órgão, solicitante, contato, categoria, assunto, descrição, canal, atendente, situação, data de finalização e processo vinculado (opcional).
+- Situações: Em atendimento, Aguardando análise interna, Aguardando retorno do solicitante, Finalizado. Ao escolher Finalizado, a data de finalização é preenchida com hoje; ao reabrir, ela é apagada.
+- Cards: Em aberto, Meus em aberto (clique filtra os seus), Finalizados no mês, Tempo médio até finalizar.
+- Filtros automáticos (Andamento, Situação, Atendente, Órgão, Canal, Categoria, Assunto, Data de/até), busca, Excel e PDF.
+- Linha amarela: aberto há mais de 7 dias; vermelha: mais de 30 dias.
+- Histórico do atendimento, com registros automáticos (registro, mudança de situação, transferência de atendente, vínculo com processo) e manuais.
+- O pop-up de entrada mostra os processos e também os atendimentos em aberto do usuário.
+- No detalhe do processo aparecem os atendimentos vinculados a ele.
+- Nova lista "Assuntos (atendimentos)" em Listas e Relatórios > Cadastros.
+- Permissões no servidor: qualquer usuário registra; só o atendente responsável ou o administrador altera; só o administrador exclui.
+
+**Organização do código** (conforme o plano aprovado): o JavaScript saiu do `index.html` e foi dividido por módulo, e a API ganhou um arquivo por módulo com as funções comuns em `lib/comum.js`. Continua sem framework e sem etapa de compilação.
+
+| Arquivo | Situação | Conteúdo |
+|---|---|---|
+| `index.html` | alterado | Só HTML e CSS; carrega os arquivos de `js/` |
+| `js/base.js` | novo | Ícones, login, comunicação com a API, menu, pop-up de entrada, funções compartilhadas |
+| `js/processos.js` | novo | Telas de processos, filtros, detalhe, histórico, formulário, relatórios, listas, importação |
+| `js/atendimentos.js` | novo | Módulo de atendimentos |
+| `js/usuarios.js` | novo | Usuários e Log |
+| `js/app.js` | novo | Inicia o sistema (carregado por último) |
+| `lib/comum.js` | novo | Banco, sessão, senhas, validação e log, usados por todas as APIs |
+| `api/data.js` | alterado | Processos, login e usuários, agora usando `lib/comum.js` |
+| `api/atendimentos.js` | novo | API dos atendimentos |
+| `db/migracao_002_atendimentos.sql` | novo | Tabela `atendimentos` e coluna `atendimento_id` no histórico |
+
+Publicação: igual à versão 2. Não há variável nova. Se a versão 2 já estiver no ar, basta substituir os arquivos (ou aplicar o patch v3) e fazer o push; as tabelas novas são criadas sozinhas.
+
+Como testar os atendimentos:
+1. Entre, abra Atendimentos e clique em Novo atendimento. Preencha e salve com situação "Aguardando análise interna".
+2. No detalhe, registre um andamento. Depois edite e mude para Finalizado: a data de finalização vem preenchida e o histórico registra a finalização.
+3. Cadastre outro em aberto, vinculado a um nº de processo existente. Abra esse processo: o atendimento aparece em "Atendimentos vinculados".
+4. Clique em Sair e entre de novo: o pop-up lista o atendimento em aberto.
+5. Entre como Servidor e tente editar um atendimento de outra pessoa: o sistema informa que só o atendente ou o administrador pode alterar.
+6. Em Usuários e Log, confira os registros de atendimento.
+
+---
+
+# Versão 2: ajustes da Gestão de Processos
 
 Versão com login individual, log de atividades, histórico do processo, campos Descrição e Setor atual, novos cards do dashboard, filtros automáticos na tela de Transferências e aviso de processos ao entrar.
 
@@ -60,11 +110,13 @@ As permissões são checadas no servidor, não só escondendo botões. O log reg
 3. Substitua os arquivos no repositório (ou aplique o patch, ver abaixo), faça commit e push. A Vercel publica sozinha.
 4. Faça um backup antes: no sistema atual, clique em **Backup (JSON)**. As tabelas novas são criadas sem mexer nos processos existentes.
 
-Aplicando o patch, na pasta do repositório (Git Bash ou PowerShell):
+O caminho mais simples é extrair o `HUB_CPAT-v3.zip` e copiar os arquivos por cima da pasta do repositório (mantendo a pasta `.git`), depois `git add -A`, `git commit` e `git push`.
+
+Se preferir aplicar os patches, na pasta do repositório (Git Bash ou PowerShell). Se a versão 2 já foi aplicada, use só o `hub-dbm-v3.patch`. Se o `git am` recusar por diferença de quebra de linha, use o zip:
 ```
-git checkout -b ajustes-login-historico
-git am hub-dbm-v2.patch
-git push -u origin ajustes-login-historico
+git checkout -b hub-dbm-v3
+git am --keep-cr hub-dbm-v2.patch hub-dbm-v3.patch
+git push -u origin hub-dbm-v3
 ```
 Abra o Pull Request no GitHub e confira o Preview da Vercel antes de juntar na branch principal.
 
