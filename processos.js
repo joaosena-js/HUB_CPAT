@@ -1,21 +1,23 @@
 // Gestão de Processos: telas, filtros, detalhe com histórico, formulário, relatórios, listas e importação
 const dsc = r => `<span style="white-space:normal">${esc(r.descricao) || '—'}</span>`;
 const CT = [['Nº do processo', r => r.numero], ['Descrição', r => r.descricao, dsc], ['Tipo', r => r.tipo], ['Interessado', r => r.orgao], ['Assunto', r => r.assunto, r => `<span style="white-space:normal">${esc(r.assunto)}</span>`], ['Recebedor', r => r.recebedor], ['Responsável', r => r.resp], ['Entrada', r => fmt(r.tram)], ['Movimentação', r => fmt(r.mov)], ['Status', r => r.status, stc], ['Prioridade', r => CL[r.crit], cb], ['Dias', r => r.age ?? '']];
+// Telas e relatórios que podem ter processos concluídos ganham a coluna Conclusão (traço enquanto não concluir)
+const CCONC = ['Conclusão', r => done(r) ? fmt(r.concl) : '—'], CTC = CT.flatMap(c => c[0] == 'Movimentação' ? [c, CCONC] : [c]);
 const act = r => `<button class="btn s" title="Detalhes" onclick="event.stopPropagation();det(${r.id})">${ic('eye', 15)}</button>`;
 const VD = {
-    todos: { t: 'Todos os Processos', s: 'Consulta geral com pesquisa, filtros combináveis e exportação', base: () => true, c: [...CT, ['Ações', () => '', act]] },
+    todos: { t: 'Todos os Processos', s: 'Consulta geral com pesquisa, filtros combináveis e exportação', base: () => true, c: [...CTC, ['Ações', () => '', act]] },
     caixa: {
         t: 'Caixa do Setor', s: 'Processos recebidos e em posse do setor', base: r => r.tipo == 'Caixa do setor' && !done(r), row: r => r.crit == 'c' ? 'r' : venc(r) ? 'w' : '',
         c: [['Nº Processo', r => r.numero], ['Assunto', r => r.assunto], ['Interessado', r => r.orgao], ['Recebedor', r => r.recebedor], ['Data de Entrada', r => fmt(r.tram)], ['Tempo em Espera', r => r.age == null ? '' : r.age + ' dias', r => `<b>${r.age ?? '—'}</b> dias`], ['Situação', r => r.status + ' · ' + CL[r.crit], r => stc(r) + ' ' + cb(r) + ' ' + venc(r)], ['Ações', () => '', act]]
     },
     alien: {
         t: 'Alienações', s: 'Baixa e desfazimento de bens', base: r => r.tipo == 'Alienação', kp: v => [['Total de Alienações', v.length, 'archive', ''], ['Em Análise', v.filter(r => !done(r) && !apr(r)).length, 'search', 'y'], ['Em Tramitação', v.filter(apr).length, 'clock', 'v'], ['Concluídas', v.filter(done).length, 'ok', 'g']],
-        c: [['Bem', bem], ['Órgão', r => r.orgao], ['Processo', r => r.numero], ['Motivo', r => r.detalhe], ['Situação', r => r.status, stc], ['Data', r => fmt(r.tram)], ['Ações', () => '', act]]
+        c: [['Bem', bem], ['Órgão', r => r.orgao], ['Processo', r => r.numero], ['Motivo', r => r.detalhe], ['Situação', r => r.status, stc], ['Data', r => fmt(r.tram)], CCONC, ['Ações', () => '', act]]
     },
     transf: {
         t: 'Transferências', s: 'Transferência de bens entre órgãos', base: r => r.tipo == 'Transferência', fo: 1, fd: ['assunto', 'orgao', 'recebedor', 'resp', 'setor', 'status', 'crit'], dt: ['e1', 'e2'],
         kp: v => [['Total de Processos', v.filter(r => !done(r)).length, 'swap', '', { c: '', t: 'não inclui os concluídos' }], ['Em Análise', v.filter(pend).length, 'clock', 'y'], ['Em Tramitação', v.filter(r => !done(r) && !pend(r)).length, 'history', 'v'], ['Concluídos', v.filter(done).length, 'ok', 'g']],
-        c: [['Nº do Processo', r => r.numero], ['Descrição', r => r.descricao, dsc], ['Qtde. de Bens', bem], ['Órgão Cedente', r => r.orgao], ['Órgão Destino', r => r.destino], ['Responsável', r => r.resp], ['Status', r => r.status, stc], ['Entrada', r => fmt(r.tram)], ['Ações', () => '', act]]
+        c: [['Nº do Processo', r => r.numero], ['Descrição', r => r.descricao, dsc], ['Qtde. de Bens', bem], ['Órgão Cedente', r => r.orgao], ['Órgão Destino', r => r.destino], ['Responsável', r => r.resp], ['Status', r => r.status, stc], ['Entrada', r => fmt(r.tram)], CCONC, ['Ações', () => '', act]]
     },
     vida: { t: 'Vida do Processo', s: 'Dias que cada processo está no setor, do mais antigo ao mais novo', base: r => !done(r), card: 1, c: CT }
 };
@@ -80,8 +82,6 @@ async function hist(id) {
 function hAdd(id) { const d = $('#hd').value, t = $('#hx').value.trim(); if (!d || t.length < 3) return alert('Informe a data e a descrição do registro.'); run(async () => { await api({ op: 'hist_add', id, data: d, descricao: t }); $('#hx').value = ''; hist(id) }) }
 function gq(v) { const b = $('#gd'), q = nz(v); if (!q) { b.hidden = true; return } const r = view().filter(x => hay(x).includes(q)); b.hidden = false; b.innerHTML = r.slice(0, 7).map(x => `<div onclick="det(${x.id});$('#gd').hidden=true"><b>${esc(x.numero)}</b><span>${esc(x.orgao || x.assunto)} · ${esc(x.status)}</span></div>`).join('') + `<a onclick="gall()">Ver todos os ${r.length} resultados</a>` }
 function gall() { gs('todos').q = $('#gq').value; gs('todos').page = 1; $('#gd').hidden = true; go('todos') }
-// Relatórios que podem ter processos concluídos ganham a coluna Conclusão logo depois de Movimentação (vazia, com traço, enquanto não concluir)
-const CTC = CT.flatMap(c => c[0] == 'Movimentação' ? [c, ['Conclusão', r => done(r) ? fmt(r.concl) : '—']] : [c]);
 const RP = [['resp', 'Processos por responsável'], ['alien', 'Alienações por período'], ['transf', 'Transferências por período'], ['conc', 'Processos concluídos'], ['pend', 'Processos em andamento'], ['atraso', 'Processos em atraso']]; let RS = { t: 'resp', a: '', b: '', r: '' };
 function rg() {
     const v = view(), dt = r => RS.t == 'conc' ? r.concl : r.tram, p = r => (!RS.a || dt(r) >= RS.a) && (!RS.b || dt(r) && dt(r) <= RS.b) && (!RS.r || r.resp == RS.r), ls = f => { const c = RS.t == 'pend' || RS.t == 'atraso' ? CT : CTC; return { h: c.map(x => x[0]), r: v.filter(r => f(r) && p(r)).sort((a, b) => (b.age ?? -1) - (a.age ?? -1)).map(r => c.map(x => x[1](r))) } };
