@@ -1,5 +1,17 @@
 # Hub DBM: entrega
 
+## Versão 6.4: coluna Conclusão também nas telas de processos
+
+A coluna **Conclusão** passa a aparecer também em **Todos os Processos** (logo depois de Movimentação), **Alienações** e **Transferências**, na tela e nas exportações de Excel e PDF dessas telas. Processo não concluído fica com traço (—). Caixa do Setor e Vida do Processo mostram só processos em andamento, então ficaram sem a coluna.
+
+| Arquivo | Situação |
+|---|---|
+| `js/processos.js` | alterado |
+
+Publicação: substitua o arquivo `js/processos.js` (ou aplique `hub-dbm-v6.4.patch` com `git am --keep-cr` sobre a v6.3) e faça o push. Depois de publicar, recarregue a página com Ctrl + F5 para o navegador não usar o arquivo antigo.
+
+---
+
 ## Versão 6.3: data de conclusão nos relatórios de processos
 
 Em **Listas e Relatórios**, os relatórios Alienações por período, Transferências por período e Processos concluídos ganharam a coluna **Conclusão**, logo depois de Movimentação. Ela aparece na tela, no Excel e no PDF. Processo ainda não concluído fica com traço (—). A data é a mesma que o sistema já grava quando o status passa para um status iniciado por "CONCLU".
