@@ -1,5 +1,19 @@
 # Hub DBM: entrega
 
+## Versão 6.3: data de conclusão nos relatórios de processos
+
+Em **Listas e Relatórios**, os relatórios Alienações por período, Transferências por período e Processos concluídos ganharam a coluna **Conclusão**, logo depois de Movimentação. Ela aparece na tela, no Excel e no PDF. Processo ainda não concluído fica com traço (—). A data é a mesma que o sistema já grava quando o status passa para um status iniciado por "CONCLU".
+
+Os relatórios Processos em andamento e Processos em atraso não têm a coluna, porque nela só apareceriam traços. A Planilha completa já trazia a coluna Conclusão.
+
+| Arquivo | Situação |
+|---|---|
+| `js/processos.js` | alterado |
+
+Publicação: substitua o arquivo (ou aplique `hub-dbm-v6.3.patch` com `git am --keep-cr` sobre a v6.2) e faça o push.
+
+---
+
 ## Versão 6.2: importação de atendimentos por planilha
 
 Em **Atendimentos**, o administrador tem o botão **Importar planilha**. O fluxo:
