@@ -47,7 +47,7 @@ function caScr() {
     const h = TS(), l = EV.filter(e => !e.cancelado), hj = evNoDia(l, h), prox = l.filter(e => evAniv(e) ? [1, 2, 3, 4, 5, 6, 7].some(i => evOcorre(e, addDias(h, i))) : e.inicio > h && e.inicio <= addDias(h, 7)), fora = hj.filter(evPess), sa = EV.filter(evSemAta);
     const [y, m] = CA.ref.split('-').map(Number), s = addDias(CA.ref, -evDow(CA.ref));
     const tit = CA.modo == 'mes' ? EV_MF[m - 1] + ' de ' + y : fmt(s) + ' a ' + fmt(addDias(s, 6)), sel = (v, ops, on, t) => `<select onchange="${on}" aria-label="${t}"><option value="">${t}</option>${ops.map(([k, n]) => `<option value="${esc(k)}" ${v == k ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
-    return head('Calendário da equipe', 'Reuniões, treinamentos, férias, agenda dos servidores, feriados e aniversários', `<button class="btn p" onclick="evEd(0)">${ic('plus', 16)} Novo evento</button>`)
+    return head('Calendário da equipe', 'Reuniões, treinamentos, férias, agenda dos servidores, feriados e aniversários', `<button class="btn" onclick="evExp()">${ic('xls', 16)} Exportar</button><button class="btn p" onclick="evEd(0)">${ic('plus', 16)} Novo evento</button>`)
         + `<div class="kp">${kc('cal', '', 'Hoje', hj.length, { c: '', t: hj.length ? 'evento(s) na agenda de hoje' : 'nenhum evento hoje' }, `CA.modo='sem';CA.ref=TS();draw()`)}${kc('clock', 'v', 'Próximos 7 dias', prox.length, { c: '', t: 'eventos que começam na semana' })}${kc('user', 'y', 'Fora do setor hoje', fora.length, { c: '', t: fora.length ? esc(fora.map(e => e.servidor.split(' ')[0]).join(', ')) : 'equipe completa' })}${kc('warn', sa.length ? 'r' : 'g', 'Reuniões sem ATA', sa.length, { c: '', t: 'realizadas e sem ATA anexada' }, sa.length ? 'evSemAtaLista()' : '')}</div>`
         + `<div class="cd"><div class="tb"><span class="sg2" style="margin:0">${[['mes', 'Mês'], ['sem', 'Semana']].map(([k, n]) => `<button class="${CA.modo == k ? 'on' : ''}" onclick="CA.modo='${k}';draw()">${n}</button>`).join('')}</span>`
         + `<button class="btn s" onclick="caNav(-1)" title="Anterior">${ic('cl', 16)}</button><b class="cat">${tit}</b><button class="btn s" onclick="caNav(1)" title="Próximo">${ic('cr', 16)}</button><button class="btn" onclick="CA.ref=TS();draw()">Hoje</button><span class="sp"></span>`
@@ -185,4 +185,52 @@ function evSv(id) {
 function evRm(id) {
     const e = EV.find(x => x.id == id), n = e ? Object.values(e.anexos || {}).reduce((s, x) => s + x, 0) : 0;
     if (confirm('Excluir este evento' + (n ? ` e os ${n} arquivo(s) anexado(s)` : '') + '? Esta ação não pode ser desfeita.')) run(async () => { await api({ op: 'del', id }, '/api/eventos'); $('#dd').close(); await evLoad(1); if (tab == 'cal') draw() })
+}
+
+// Exportação do calendário (Excel ou PDF) por período, tipo e servidor. Com "Todos os tipos", cada tipo sai em uma aba (Excel) ou seção (PDF),
+// com as colunas próprias do tipo. O motivo reservado da agenda do servidor nunca é exportado.
+function evExp() {
+    const [y, m] = CA.ref.split('-').map(Number), s = addDias(CA.ref, -evDow(CA.ref)), a = CA.modo == 'mes' ? ymd(new Date(y, m - 1, 1)) : s, b = CA.modo == 'mes' ? ultimoDia(y, m) : addDias(s, 6);
+    const op = (l, v) => l.map(([k, n]) => `<option value="${esc(k)}" ${v == k ? 'selected' : ''}>${esc(n)}</option>`).join('');
+    $('#dd').innerHTML = `<h2><span>Exportar calendário</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2><form class="fm" onsubmit="event.preventDefault()">
+<label>De<input type="date" id="x_a" value="${a}"></label><label>Até<input type="date" id="x_b" value="${b}"></label>
+<label>Tipo<select id="x_t"><option value="">Todos os tipos (um por aba ou seção)</option>${op(EV_TIPOS.map(t => [t, t]), CA.tipo)}</select></label>
+<label>Servidor<select id="x_s"><option value="">Todos os servidores</option>${op(EVU.map(u => [u.id, u.nome]), CA.serv)}</select></label>
+<label class="w ck"><input type="checkbox" id="x_c" checked> Incluir eventos cancelados</label>
+<p class="nt w" style="margin:0">Entram os eventos que acontecem em pelo menos um dia do período. O motivo da agenda do servidor não é exportado.</p>
+<div class="w" style="display:flex;gap:8px"><button type="button" class="btn p" onclick="evExpGo('x')">${ic('xls', 15)} Excel</button><button type="button" class="btn" onclick="evExpGo('p')">${ic('pdf', 15)} PDF</button></div></form>`;
+    if (!$('#dd').open) $('#dd').showModal()
+}
+const evAnxTxt = e => Object.entries(e.anexos || {}).map(([k, n]) => `${k}: ${n}`).join(' · ') || 'Nenhum';
+// Colunas por tipo: [cabeçalho, valor]
+function evExpCols(t) {
+    const L = EV_LETRA[t], dia = e => fmt(e.inicio).slice(0, 5);
+    if (L == 'N') return [['Aniversariante', e => e.servidor || e.titulo], ['Dia', dia], ['Lançado por', e => e.criado_por_nome]];
+    const base = [['Evento', evNome], ['Início', e => fmt(e.inicio)], ['Fim', e => fmt(e.fim)]];
+    if (L == 'H') return [...base, ['Classificação', e => e.classificacao], ['Ato ou observação', e => e.pauta], ['Lançado por', e => e.criado_por_nome]];
+    if (L == 'F') return [['Servidor', e => e.servidor], ['Início', e => fmt(e.inicio)], ['Fim', e => fmt(e.fim)], ['Dias', e => dDias(e.inicio, e.fim) + 1], ['Situação', e => evSit(e)[0]], ['Lançado por', e => e.criado_por_nome]];
+    if (L == 'A') return [['Servidor', e => e.servidor], ['Como a equipe vê', e => e.titulo], ['Início', e => fmt(e.inicio)], ['Fim', e => fmt(e.fim)], ['Horário', evHora], ['Situação', e => evSit(e)[0]]];
+    return [...base, ['Horário', evHora], ['Situação', e => evSit(e)[0]], ['Local ou link', e => e.local], ['Participantes da equipe', e => evNomes(e.participantes)], ['Participantes externos', e => e.participantes_externos],
+    [L == 'T' ? 'Conteúdo' : L == 'O' ? 'Descrição' : 'Pauta', e => e.pauta], ...(L == 'T' ? [['Carga horária (h)', e => e.carga_horaria ? String(e.carga_horaria).replace('.', ',') : '']] : []), ['Anexos', evAnxTxt], ['Lançado por', e => e.criado_por_nome]]
+}
+function evExpGo(kind) {
+    const a = $('#x_a').value, b = $('#x_b').value, t = $('#x_t').value, sv = $('#x_s').value, canc = $('#x_c').checked;
+    if (!a || !b || b < a) return alert('Informe um período válido.');
+    if (dDias(a, b) > 731) return alert('Escolha um período de até 2 anos.');
+    const noPer = e => { if (!evAniv(e)) return e.inicio <= b && e.fim >= a; for (let d = a; d <= b; d = addDias(d, 1)) if (evOcorre(e, d)) return true; return false };
+    const l = EV.filter(e => (!t || e.tipo == t) && (canc || !e.cancelado) && (!sv || e.tipo == EV_FER || e.servidor_id == sv || e.participantes.includes(+sv)) && noPer(e))
+        .sort((x, y) => (evAniv(x) && evAniv(y) ? x.inicio.slice(5).localeCompare(y.inicio.slice(5)) : x.inicio.localeCompare(y.inicio)) || (x.hora_inicio || '').localeCompare(y.hora_inicio || '') || x.id - y.id);
+    if (!l.length) return alert('Nenhum evento no período com esses filtros.');
+    const tipos = (t ? [t] : EV_TIPOS).filter(x => l.some(e => e.tipo == x)), sec = tipos.map(x => { const c = evExpCols(x), r = l.filter(e => e.tipo == x); return { t: x, h: c.map(z => z[0]), r: r.map(e => c.map(z => String(z[1](e) ?? ''))) } });
+    const per = `${fmt(a)} a ${fmt(b)}`, sn = sv ? ' · ' + (EVU.find(u => u.id == sv) || {}).nome : '', tit = 'Calendário da equipe' + (t ? ' · ' + t : '');
+    if (kind == 'x') {
+        const wb = XLSX.utils.book_new();
+        if (sec.length > 1) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[tit], ['Período: ' + per + sn], [], ['Tipo', 'Eventos', 'Cancelados'], ...sec.map(x => [x.t, l.filter(e => e.tipo == x.t).length, l.filter(e => e.tipo == x.t && e.cancelado).length]), ['Total', l.length, l.filter(e => e.cancelado).length]]), 'Resumo');
+        sec.forEach(x => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[x.t], ['Período: ' + per + sn], [], x.h, ...x.r]), x.t.replace(/[\\/?*[\]:]/g, '').slice(0, 31)));
+        XLSX.writeFile(wb, ('calendario_' + (t || 'todos') + '_' + a + '_a_' + b).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\W+/g, '_') + '.xlsx'); return
+    }
+    const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(f); const w = f.contentWindow; w.document.open();
+    w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(tit)}</title><style>body{font:11px Arial;margin:16px}h1{font-size:16px;margin:0}h2{font-size:13px;margin:16px 0 6px;color:#0f2a4a}p{color:#555;margin:2px 0 10px}table{border-collapse:collapse;width:100%;page-break-inside:auto}tr{page-break-inside:avoid}th{background:#0f2a4a;color:#fff;text-align:left}th,td{border:1px solid #ccc;padding:4px 6px;vertical-align:top}td{white-space:pre-wrap}tr:nth-child(even){background:#f3f5f9}@page{size:landscape;margin:10mm}</style></head><body><h1>${esc(tit)}</h1><p>Coordenadoria de Patrimônio · DBM · Período: ${per}${esc(sn)} · emitido em ${fmt(TS())} · ${l.length} evento(s)</p>`
+        + sec.map(x => `${sec.length > 1 ? `<h2>${esc(x.t)} (${x.r.length})</h2>` : ''}<table><thead><tr>${x.h.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${x.r.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`).join('') + `</body></html>`);
+    w.document.close(); setTimeout(() => { w.focus(); w.print(); setTimeout(() => f.remove(), 3000) }, 300)
 }

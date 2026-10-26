@@ -1,5 +1,21 @@
 # Hub DBM: entrega
 
+## Versão 6.5: exportação do calendário
+
+No **Calendário da equipe**, o botão **Exportar** abre a escolha de período (vem preenchido com o mês ou a semana em tela), tipo, servidor e se os cancelados entram. Depois é só clicar em Excel ou PDF.
+- **Um tipo:** uma tabela com as colunas daquele tipo (por exemplo, reunião traz horário, local, participantes, pauta e anexos; treinamento traz também a carga horária; férias traz o servidor e os dias).
+- **Todos os tipos:** no Excel, uma aba de resumo e uma aba por tipo; no PDF, uma seção por tipo.
+- Entram os eventos que acontecem em pelo menos um dia do período. Aniversário entra quando a data cai no período.
+- O motivo reservado da agenda do servidor nunca vai para a exportação.
+
+| Arquivo | Situação |
+|---|---|
+| `js/calendario.js` | alterado |
+
+Publicação: substitua o arquivo `js/calendario.js` (ou aplique `hub-dbm-v6.5.patch` com `git am --keep-cr` sobre a v6.4), faça o push e recarregue com Ctrl + F5.
+
+---
+
 ## Versão 6.4: coluna Conclusão também nas telas de processos
 
 A coluna **Conclusão** passa a aparecer também em **Todos os Processos** (logo depois de Movimentação), **Alienações** e **Transferências**, na tela e nas exportações de Excel e PDF dessas telas. Processo não concluído fica com traço (—). Caixa do Setor e Vida do Processo mostram só processos em andamento, então ficaram sem a coluna.
