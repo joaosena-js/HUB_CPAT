@@ -1,5 +1,32 @@
 # Hub DBM: entrega
 
+## Versão 6.6: melhorias de uso e de Excel
+
+**Excel dos relatórios** (telas de processos, Listas e Relatórios, Atendimentos e Calendário):
+- Datas saem como data de verdade (formato dd/mm/aaaa), então o filtro do Excel agrupa por ano, mês e dia. Traço vira célula vazia. A Planilha completa e os Relatórios gerenciais também passam a gravar as datas como data.
+- No topo de cada planilha há um cabeçalho de gestão: título, data de emissão, filtros usados e um **resumo só com quantitativos** (total de registros e contagem por tipo, status ou situação, prioridade, categoria, canal e responsável, conforme as colunas do relatório).
+- A linha de títulos da tabela já vem com o filtro do Excel ligado, e as colunas vêm com largura ajustada.
+- A importação de atendimentos aceita também uma planilha exportada pelo próprio Hub, com o resumo no topo.
+
+**Pesquisa nas telas:** a barra de pesquisa de Todos os Processos, Caixa do Setor, Alienações, Transferências e Vida do Processo agora filtra enquanto você digita. Havia um erro que impedia a atualização da lista (o nome da função coincidia com uma propriedade do próprio campo de texto do navegador).
+
+**Layout:** a área principal ocupa toda a largura da tela (antes parava em 1.500 px). No celular, a busca rápida do cabeçalho ganhou mais espaço.
+
+**Ícone:** o site tem ícone na aba do navegador (arquivo novo `favicon.svg`, com o mesmo símbolo do menu).
+
+**Tabelas:** cabeçalhos e células ficam centralizados. Só as colunas de texto livre (Descrição, Assunto, Motivo) continuam alinhadas à esquerda, para facilitar a leitura.
+
+**Novo atendimento:** botão no cabeçalho, ao lado de Novo processo, disponível em qualquer tela. No celular aparecem só os ícones.
+
+| Arquivo | Situação |
+|---|---|
+| `favicon.svg` | novo |
+| `index.html`, `js/base.js`, `js/processos.js`, `js/atendimentos.js`, `js/calendario.js`, `js/relatorios.js` | alterados |
+
+Publicação: substitua os arquivos (ou aplique `hub-dbm-v6.6.patch` com `git am --keep-cr` sobre a v6.5), faça o push e recarregue com Ctrl + F5. O ícone pode demorar alguns minutos para aparecer na aba, porque o navegador guarda o ícone antigo.
+
+---
+
 ## Versão 6.5: exportação do calendário
 
 No **Calendário da equipe**, o botão **Exportar** abre a escolha de período (vem preenchido com o mês ou a semana em tela), tipo, servidor e se os cancelados entram. Depois é só clicar em Excel ou PDF.

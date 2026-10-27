@@ -226,7 +226,8 @@ function evExpGo(kind) {
     if (kind == 'x') {
         const wb = XLSX.utils.book_new();
         if (sec.length > 1) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[tit], ['Período: ' + per + sn], [], ['Tipo', 'Eventos', 'Cancelados'], ...sec.map(x => [x.t, l.filter(e => e.tipo == x.t).length, l.filter(e => e.tipo == x.t && e.cancelado).length]), ['Total', l.length, l.filter(e => e.cancelado).length]]), 'Resumo');
-        sec.forEach(x => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[x.t], ['Período: ' + per + sn], [], x.h, ...x.r]), x.t.replace(/[\\/?*[\]:]/g, '').slice(0, 31)));
+        // Cada aba: resumo quantitativo (total e por situação), datas como data e filtro no cabeçalho
+        sec.forEach(x => XLSX.utils.book_append_sheet(wb, xlsRel('Calendário da equipe · ' + x.t, x.h, x.r, 'Período: ' + per + sn), x.t.replace(/[\\/?*[\]:]/g, '').slice(0, 31)));
         XLSX.writeFile(wb, ('calendario_' + (t || 'todos') + '_' + a + '_a_' + b).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\W+/g, '_') + '.xlsx'); return
     }
     const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(f); const w = f.contentWindow; w.document.open();

@@ -45,11 +45,11 @@ function atMeus() { atFiltra({ andamento: 'Em aberto', atendente: ME ? ME.nome :
 function atList() {
     const el = $('#res'); if (!el) return; const r = atRows(), n = r.length, P = Math.max(1, Math.ceil(n / ATS.size)); ATS.page = Math.min(ATS.page, P);
     const pg = r.slice((ATS.page - 1) * ATS.size, ATS.page * ATS.size); $('#fc').textContent = Object.values(ATS.f).filter(Boolean).length || ''; $('#fp').innerHTML = ATS.open ? atFp() : '';
-    el.innerHTML = `<div class="tw"><table><thead><tr>${AT_C.map(c => `<th>${c[0]}</th>`).join('')}<th>Ações</th></tr></thead><tbody>${pg.map(a => `<tr class="${a.situacao != AT_FIM && a.dias > 30 ? 'r' : a.situacao != AT_FIM && a.dias > 7 ? 'w' : ''}" onclick="atDet(${a.id})">${AT_C.map(c => `<td>${c[2] ? c[2](a) : esc(c[1](a)) || '—'}</td>`).join('')}<td><button class="btn s" title="Detalhes" onclick="event.stopPropagation();atDet(${a.id})">${ic('eye', 15)}</button></td></tr>`).join('')}</tbody></table></div>`
+    el.innerHTML = `<div class="tw"><table><thead><tr>${AT_C.map(c => `<th${tal(c[0])}>${c[0]}</th>`).join('')}<th>Ações</th></tr></thead><tbody>${pg.map(a => `<tr class="${a.situacao != AT_FIM && a.dias > 30 ? 'r' : a.situacao != AT_FIM && a.dias > 7 ? 'w' : ''}" onclick="atDet(${a.id})">${AT_C.map(c => `<td${tal(c[0])}>${c[2] ? c[2](a) : esc(c[1](a)) || '—'}</td>`).join('')}<td><button class="btn s" title="Detalhes" onclick="event.stopPropagation();atDet(${a.id})">${ic('eye', 15)}</button></td></tr>`).join('')}</tbody></table></div>`
         + (n ? '' : `<p class="nt" style="text-align:center;padding:24px">${AT.length ? 'Nenhum atendimento encontrado com esses filtros.' : 'Nenhum atendimento registrado ainda.'}</p>`)
         + `<div class="pgr"><span>${n ? (ATS.page - 1) * ATS.size + 1 : 0}–${Math.min(n, ATS.page * ATS.size)} de ${n}</span><select onchange="ATS.size=+this.value;ATS.page=1;atList()">${[25, 50, 100].map(x => `<option ${ATS.size == x ? 'selected' : ''}>${x}</option>`).join('')}</select><button class="btn s" ${ATS.page < 2 ? 'disabled' : ''} onclick="ATS.page--;atList()">${ic('cl', 16)}</button><b>${ATS.page}/${P}</b><button class="btn s" ${ATS.page >= P ? 'disabled' : ''} onclick="ATS.page++;atList()">${ic('cr', 16)}</button></div>`
 }
-const atEx = k => xp('Atendimentos', AT_X.map(c => c[0]), atRows().map(a => AT_X.map(c => c[1](a))), k);
+const atEx = k => xp('Atendimentos', AT_X.map(c => c[0]), atRows().map(a => AT_X.map(c => c[1](a))), k, ATS.q || Object.values(ATS.f).some(Boolean) ? 'com a pesquisa e os filtros aplicados na tela' : '');
 
 async function atDet(id) {
     let a = atView().find(x => x.id == id); if (!a) { await atLoad(1); a = atView().find(x => x.id == id) } if (!a) return;
@@ -114,11 +114,11 @@ async function atImpLer() {
     const f = $('#ai_f').files[0]; if (!f) return;
     try {
         const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' }), m = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
-        const h = (m[0] || []).map(nh), ix = {}; Object.entries(AT_IMP_COL).forEach(([c, ns]) => ix[c] = h.findIndex(x => ns.includes(x)));
+        const hi = Math.max(0, m.slice(0, 40).findIndex(r => r.map(nh).includes('data') && r.map(nh).includes('solicitante'))), h = (m[hi] || []).map(nh), ix = {}; Object.entries(AT_IMP_COL).forEach(([c, ns]) => ix[c] = h.findIndex(x => ns.includes(x)));
         const falta = ['data', 'solicitante', 'categoria', 'canal', 'atendente'].filter(c => ix[c] < 0);
         if (falta.length) throw new Error('coluna não encontrada: ' + falta.map(c => ({ canal: 'TIPO DE CONTATO', atendente: 'RESPONSÁVEL' })[c] || c.toUpperCase()).join(', '));
         const g = (r, c) => ix[c] < 0 ? '' : r[ix[c]], t = (r, c) => { const v = String(g(r, c) ?? '').trim(); return /^([-–—.]+|n\/?a)$/i.test(v) ? '' : v }; // "-" e "N/A" contam como vazio
-        ATI = { linhas: m.slice(1).map((r, i) => [r, i + 2]).filter(([r]) => r.some(v => String(v).trim() !== '')).map(([r, n]) => {
+        ATI = { linhas: m.slice(hi + 1).map((r, i) => [r, i + hi + 2]).filter(([r]) => r.some(v => String(v).trim() !== '')).map(([r, n]) => {
             const x = { linha: n, data: atImpData(g(r, 'data')), hora: atImpHora(g(r, 'hora')), orgao: t(r, 'orgao'), solicitante: t(r, 'solicitante'), contato: t(r, 'contato'), assunto: t(r, 'assunto'), descricao: t(r, 'descricao'), nome: t(r, 'atendente'), ajustes: [], erros: [], nota: '' };
             const cat = t(r, 'categoria'), can = t(r, 'canal'), st = t(r, 'situacao'), fin = atImpData(g(r, 'data_finalizacao')), obs = t(r, 'obs');
             x.categoria = atImpCat(cat); x.canal = atImpCanal(can); x.situacao = atImpSit(st, fin); x.data_finalizacao = x.situacao == AT_FIM ? fin : '';

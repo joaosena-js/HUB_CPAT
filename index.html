@@ -5,6 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>HUB DBM</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <script>try { document.documentElement.dataset.t = localStorage.getItem('dbm_t') || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light') } catch (e) { }</script>
     <style>
         :root {
@@ -247,7 +248,6 @@
         main {
             margin-left: 250px;
             padding: 24px;
-            max-width: 1500px;
             animation: fu .35s
         }
 
@@ -853,6 +853,17 @@
         td.wr {
             white-space: normal;
             min-width: 190px
+        }
+
+        .tw th,
+        .tw td {
+            text-align: center;
+            vertical-align: middle
+        }
+
+        .tw th.tl,
+        .tw td.tl {
+            text-align: left
         }
 
         tbody tr {
@@ -1645,6 +1656,14 @@
                 padding: 10px 14px
             }
 
+            #tp .sp {
+                display: none
+            }
+
+            #tp .gs {
+                min-width: 0
+            }
+
             main {
                 padding: 16px 14px
             }
@@ -1682,8 +1701,9 @@
                 autocomplete="off">
             <div id="gd" hidden></div>
         </div><span class="sp"></span>
-        <button class="btn" id="bt" onclick="th()" title="Alternar tema"></button><button class="btn p"
-            onclick="edit(0)" id="bn"></button>
+        <button class="btn" id="bt" onclick="th()" title="Alternar tema"></button><button class="btn"
+            onclick="atEd(0)" id="ba" title="Novo atendimento"></button><button class="btn p" onclick="edit(0)" id="bn"
+            title="Novo processo"></button>
     </header>
     <main id="mn"></main>
     <dialog id="dg">

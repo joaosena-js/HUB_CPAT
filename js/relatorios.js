@@ -107,6 +107,6 @@ ${Q.map(q => `<section><h2>${esc(q.t)}</h2>${rgTab(q)}${q.nota ? `<p class="nt">
 // Excel: uma aba por quadro, com todas as linhas
 function rgXls() {
     const { P, Q } = rgQuadros(), wb = XLSX.utils.book_new();
-    Q.forEach(q => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[q.t], ['Período: ' + P.nome], [], q.h, ...q.r]), q.t.replace(/[\\/?*[\]:]/g, '').slice(0, 31)));
+    Q.forEach(q => XLSX.utils.book_append_sheet(wb, xlsTipos(XLSX.utils.aoa_to_sheet([[q.t], ['Período: ' + P.nome], [], q.h, ...q.r])), q.t.replace(/[\\/?*[\]:]/g, '').slice(0, 31)));
     XLSX.writeFile(wb, 'relatorio_gerencial_' + P.a + '_a_' + P.b + '.xlsx')
 }

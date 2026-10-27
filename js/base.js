@@ -99,8 +99,35 @@ function mon(v) {
     const e = M.map(m => v.filter(r => (r.tram || '').startsWith(m)).length), c = M.map(m => v.filter(r => (r.concl || '').startsWith(m)).length), mx = Math.max(1, ...e, ...c);
     return `<svg viewBox="0 0 600 190" class="ch">${M.map((m, i) => { const x = 10 + i * 48, a = e[i] / mx * 140, b = c[i] / mx * 140, l = m.slice(5) + '/' + m.slice(0, 4); return `<g class="bg"><rect class="b1" x="${x}" y="${160 - a}" width="18" height="${a}" rx="3"><title>${l} · ${e[i]} entradas</title></rect><rect class="b2" x="${x + 20}" y="${160 - b}" width="18" height="${b}" rx="3"><title>${l} · ${c[i]} concluídos</title></rect><text x="${x + 19}" y="177" text-anchor="middle">${MS[+m.slice(5) - 1]}</text></g>` }).join('')}</svg><div class="lgd"><span><i style="background:var(--pr)"></i>Entradas</span><span><i style="background:var(--ok)"></i>Concluídos</span></div>`
 }
-function xp(title, h, r, kind) {
-    if (kind == 'x') { const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([h, ...r]), 'RELATORIO'); XLSX.writeFile(wb, title.replace(/\W+/g, '_') + '_' + TS() + '.xlsx'); return }
+// Colunas de texto livre ficam alinhadas à esquerda; as demais, centralizadas
+const TL = ['Descrição', 'Assunto', 'Motivo', 'Pauta', 'Observação'], tal = h => TL.includes(h) ? ' class="tl"' : '';
+// Excel: datas dd/mm/aaaa viram data de verdade (permite filtrar e ordenar por data) e números em texto viram número
+function xlsTipos(ws) {
+    const R = XLSX.utils.decode_range(ws['!ref'] || 'A1'), b = Date.UTC(1899, 11, 30);
+    for (let r = R.s.r; r <= R.e.r; r++) for (let c = R.s.c; c <= R.e.c; c++) {
+        const k = XLSX.utils.encode_cell({ r, c }), x = ws[k]; if (!x || x.t != 's') continue; const v = x.v.trim(), m = v.match(/^(\d\d)\/(\d\d)\/(\d{4})$/);
+        if (v == '—') { delete ws[k]; continue } // traço da tela vira célula vazia, para o filtro do Excel mostrar "(Vazias)"
+        if (m && +m[2] >= 1 && +m[2] <= 12) ws[k] = { t: 'n', v: (Date.UTC(+m[3], +m[2] - 1, +m[1]) - b) / 864e5, z: 'dd/mm/yyyy' };
+        else if (/^\d{1,9}$/.test(v) && !/^0\d/.test(v)) ws[k] = { t: 'n', v: +v }
+    }
+    return ws
+}
+// Planilha de relatório: título, resumo quantitativo (total e contagem pelas colunas de classificação) e a tabela com filtro no cabeçalho
+// Coluna em que cada linha tem um valor diferente (por exemplo, o relatório por responsável) não entra no resumo
+const XRES = ['Tipo', 'Status', 'Situação', 'Prioridade', 'Categoria', 'Canal', 'Responsável', 'Atendente', 'Classificação'];
+function xlsRel(title, h, r, sub = '') {
+    const cols = XRES.map(n => h.indexOf(n)).filter(i => i >= 0).slice(0, 5), conta = i => { const o = {}; r.forEach(x => { const v = String(x[i] ?? '').trim() || '(não informado)'; o[v] = (o[v] || 0) + 1 }); const l = Object.entries(o).sort((a, b) => b[1] - a[1]); return l.length > 12 ? [...l.slice(0, 11), ['Outros', l.slice(11).reduce((s, x) => s + x[1], 0)]] : l };
+    const bl = cols.map(i => [h[i], conta(i)]).filter(([, l]) => r.length < 2 || l.length < r.length), alt = Math.max(0, ...bl.map(x => x[1].length)), res = [];
+    if (bl.length) { res.push(bl.flatMap(([n]) => [n, 'Qtde.', ''])); for (let j = 0; j < alt; j++) res.push(bl.flatMap(([, l]) => l[j] ? [l[j][0], l[j][1], ''] : ['', '', ''])); res.push([]) }
+    const topo = [[title], ['Coordenadoria de Patrimônio · DBM · emitido em ' + fmt(TS()) + (sub ? ' · ' + sub : '')], [], ['RESUMO'], ['Total de registros', r.length], [], ...res], ini = topo.length;
+    const ws = xlsTipos(XLSX.utils.aoa_to_sheet([...topo, h, ...r]));
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: ini, c: 0 }, e: { r: ini + r.length, c: Math.max(0, h.length - 1) } }) };
+    ws['!cols'] = h.map((x, i) => ({ wch: Math.min(60, Math.max(10, String(x).length + 2, ...r.slice(0, 300).map(y => String(y[i] ?? '').split('\n')[0].length + 2), ...res.map(y => String(y[i] ?? '').length + 2))) }));
+    return ws
+}
+const xlsNome = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\W+/g, '_');
+function xp(title, h, r, kind, sub) {
+    if (kind == 'x') { const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, xlsRel(title, h, r, sub), 'RELATORIO'); XLSX.writeFile(wb, xlsNome(title) + '_' + TS() + '.xlsx'); return }
     const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(f); const w = f.contentWindow; w.document.open();
     w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(title)}</title><style>body{font:11px Arial;margin:16px}h1{font-size:16px;margin:0}p{color:#555;margin:2px 0 10px}table{border-collapse:collapse;width:100%}th{background:#0f2a4a;color:#fff;text-align:left}th,td{border:1px solid #ccc;padding:4px 6px}tr:nth-child(even){background:#f3f5f9}@page{size:landscape;margin:10mm}</style></head><body><h1>${esc(title)}</h1><p>Coordenadoria de Patrimônio · DBM — emitido em ${fmt(TS())} · ${r.length} registro(s)</p><table><thead><tr>${h.map(x => `<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${r.map(x => `<tr>${x.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></body></html>`); w.document.close(); setTimeout(() => { w.focus(); w.print(); setTimeout(() => f.remove(), 3000) }, 300)
 }
@@ -112,7 +139,7 @@ function draw() {
 function go(t) { tab = t; $('#sd').classList.remove('o'); draw(); scrollTo(0, 0); if (t == 'usu') usuLoad(); if (t == 'aten' || t == 'relg' || t == 'home') atLoad(); if (t == 'cal' || t == 'relg' || t == 'home') evLoad() }
 function th() { const d = document.documentElement, n = d.dataset.t == 'dark' ? 'light' : 'dark'; d.dataset.t = n; localStorage.setItem('dbm_t', n); $('#bt').innerHTML = ic(n == 'dark' ? 'sun' : 'moon', 17) }
 const sf = () => $('.sf').innerHTML = (ME ? `<div class="me"><b>${esc(ME.nome)}</b>${ME.perfil == 'admin' ? 'Administrador' : 'Servidor'}</div>` : '') + `<button onclick="xl()">${ic('xls', 17)} Planilha completa</button><button onclick="bk()">${ic('db', 17)} Backup (JSON)</button>${adm() ? `<button onclick="openImp()">${ic('up', 17)} Importar dados</button>` : ''}${ME ? `<button onclick="senha()">${ic('pen', 17)} Alterar minha senha</button><button onclick="sair()">${ic('x', 17)} Sair</button>` : ''}`; sf();
-$('.lg i').innerHTML = ic('bank', 22); $('#mb').innerHTML = ic('menu', 22); $('#bn').innerHTML = ic('plus', 16) + ' <span class="tp-t">Novo processo</span>';
+$('.lg i').innerHTML = ic('bank', 22); $('#mb').innerHTML = ic('menu', 22); $('#bn').innerHTML = ic('plus', 16) + ' <span class="tp-t">Novo processo</span>'; $('#ba').innerHTML = ic('chat', 16) + ' <span class="tp-t">Novo atendimento</span>';
 $('#bt').innerHTML = ic(document.documentElement.dataset.t == 'dark' ? 'sun' : 'moon', 17);
 document.addEventListener('click', e => { if (!e.target.closest('.gs')) $('#gd').hidden = true });
 const poll = () => { if (ready && !document.hidden && !$('#dg').open && !$('#dd').open && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { load(); if (tab == 'aten' || tab == 'relg' || tab == 'home') atLoad(1); if (tab == 'cal' || tab == 'relg' || tab == 'home') evLoad(1) } }; setInterval(poll, 4000); document.addEventListener('visibilitychange', poll); addEventListener('focus', poll);
