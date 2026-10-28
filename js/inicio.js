@@ -28,7 +28,7 @@ function inScr() {
         ['caixa', 'inbox', 'Caixa do Setor', `${n('Caixa do setor')} em andamento`],
         ['aten', 'chat', 'Atendimentos', `${atA.length} em aberto`],
         ['cal', 'cal', 'Calendário da equipe', hj ? `${hj} evento(s) hoje` : 'nenhum evento hoje'],
-        ['relg', 'pie', 'Relatórios gerenciais', 'indicadores por período'],
+        ['relg', 'pie', 'Gerenciais', 'indicadores por período'],
         ...(adm() ? [['usu', 'user', 'Usuários e Log', 'acessos e registros']] : []),
     ];
     const dia = d => (d == h ? 'Hoje' : d == addDias(h, 1) ? 'Amanhã' : EV_DS[evDow(d)] + ', ' + fmt(d).slice(0, 5));

@@ -25,7 +25,7 @@ Os arquivos são carregados pelo `index.html` nesta ordem, e cada um pode usar o
 | `js/base.js` | Funções usadas por todas as telas: ícones, login, comunicação com o servidor (`api`), menu, troca de tela (`go`, `draw`), tema claro e escuro, pop-up Resumo do dia, exportação para Excel e PDF |
 | `js/processos.js` | Gestão de Processos: Dashboard, Caixa do Setor, Alienações, Transferências, Todos os Processos, Vida do Processo, detalhe com histórico, formulário, Listas e Relatórios, cadastros e importação de planilha |
 | `js/atendimentos.js` | Gestão de Atendimentos: tela, filtros, detalhe com histórico, formulário e importação de planilha |
-| `js/relatorios.js` | Relatórios gerenciais (quadros por mês, trimestre, ano ou intervalo de datas, com comparação ao período anterior) |
+| `js/relatorios.js` | Tela Gerenciais (quadros por mês, trimestre, ano ou intervalo de datas, com comparação ao período anterior, e escolha do que entra no PDF e no Excel) |
 | `js/calendario.js` | Calendário: reuniões, treinamentos, outros eventos, férias, agenda do servidor, feriados e aniversários, anexos e exportação por tipo |
 | `js/inicio.js` | Tela Início, com os atalhos, a agenda da semana e os itens do usuário |
 | `js/usuarios.js` | Usuários e log de atividades (somente administrador) |
@@ -103,7 +103,7 @@ Alguns nomes são curtos porque são usados centenas de vezes. Os principais:
 | `done(processo)` | Verdadeiro quando o processo está concluído (status começa com CONCLU) |
 | `#dd` e `#dg` | Janelas que abrem por cima da tela. `#dd` é usada por quase tudo (detalhes, formulários de atendimento e evento, importações); `#dg` é o formulário de processo |
 
-Os prefixos ajudam a saber de qual módulo é cada função: `at` é de atendimentos (`atEd`, `atSv`), `ev` e `ca` são do calendário (`evEd`, `caMes`), `rg` é dos relatórios gerenciais, `usu` é de usuários e `in` é da tela Início.
+Os prefixos ajudam a saber de qual módulo é cada função: `at` é de atendimentos (`atEd`, `atSv`), `ev` e `ca` são do calendário (`evEd`, `caMes`), `rg` é da tela Gerenciais, `usu` é de usuários e `in` é da tela Início.
 
 ## 6. Onde mexer para mudanças comuns
 

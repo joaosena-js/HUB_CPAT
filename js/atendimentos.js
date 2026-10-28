@@ -152,7 +152,7 @@ function atFp() {
     ]
         .map(
             ([c, l]) =>
-                `<label>${l}<input type="date" value="${f[c] || ''}" onchange="atSF('${c}',this.value)"></label>`
+                `<label>${l}<input type="date" value="${f[c] || ''}" onchange="anoOk(this.value)&&atSF('${c}',this.value)"></label>`
         )
         .join('')}<button class="btn" onclick="ATS.f={};ATS.page=1;atList()">Limpar filtros</button></div>`;
 }

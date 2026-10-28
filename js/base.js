@@ -270,6 +270,9 @@ const TS = () => {
         n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0')
     );
 };
+// Campo de data enquanto o ano ainda está sendo digitado ("2", "20", "202" viram 0002, 0020, 0202): só aplica o filtro
+// quando o ano tiver 4 dígitos de verdade, para a tela não se redesenhar no meio da digitação. Campo vazio vale (limpa o filtro).
+const anoOk = v => !v || +v.slice(0, 4) >= 1900;
 const fmt = s => (s ? s.split('-').reverse().join('/') : '—'),
     // Concluído = status que começa com CONCLU. Processo sem status (importado sem essa coluna) conta como em aberto.
     done = r => (r.status || '').startsWith('CONCLU');
@@ -351,7 +354,7 @@ const NAV = [
     ['Calendário'],
     ['cal', 'cal', 'Calendário da equipe'],
     ['Relatórios'],
-    ['relg', 'pie', 'Relatórios gerenciais'],
+    ['relg', 'pie', 'Gerenciais'],
     ['Administração', , , 1],
     ['usu', 'user', 'Usuários e Log', 1],
 ];

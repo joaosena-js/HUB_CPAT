@@ -1,5 +1,24 @@
 # Hub DBM: entrega
 
+## Versão 6.8: tela Gerenciais
+
+**Digitação do ano nas datas:** ao digitar o ano num campo de data, o navegador entrega valores intermediários (0002, 0020, 0202) antes de chegar a 2026. A tela era redesenhada a cada um deles, e não dava para terminar de digitar. Agora o filtro só é aplicado quando o ano tem 4 dígitos de verdade. A correção vale para o intervalo e o mês da tela Gerenciais e para os filtros de data de Processos, Listas e Relatórios, Atendimentos e Log de atividades.
+
+**Personalizar relatório:** novo botão na tela Gerenciais. Ele abre uma lista com os 6 indicadores do Resumo do período e todos os quadros, e o que for desmarcado não entra no PDF nem no Excel.
+- A tela continua mostrando tudo. Os itens fora do relatório ficam esmaecidos, com a etiqueta "Fora do relatório", e aparece o aviso "Relatório personalizado: N item(ns) fora do PDF e do Excel".
+- A escolha fica guardada no navegador, separada por usuário. Vale para todos os períodos até ser alterada, e "Marcar todos" volta ao relatório completo.
+- Se tudo for desmarcado, o sistema avisa em vez de gerar um arquivo vazio.
+
+**Nome:** "Relatórios gerenciais" passou a se chamar "Gerenciais" no menu, no título da tela e no atalho da tela Início. O PDF continua com o título "Relatório gerencial".
+
+| Arquivo | Situação |
+|---|---|
+| `js/relatorios.js`, `js/base.js`, `js/processos.js`, `js/atendimentos.js`, `js/usuarios.js`, `js/inicio.js`, `index.html`, `GUIA-DO-CODIGO.md` | alterados |
+
+Publicação: substitua os arquivos (ou aplique `hub-dbm-v6.8.patch` com `git am --keep-cr` sobre a v6.7), faça o push e recarregue com Ctrl + F5.
+
+---
+
 ## Versão 6.7: código organizado e guia de leitura
 
 Esta versão não muda nada do que aparece na tela. Ela organiza o código para que seja possível ler e entender.

@@ -277,7 +277,7 @@ function fpan(k) {
         )
         .join(
             ''
-        )}${ft.map(([f, l]) => `<label>${l}<input type="date" value="${s.f[f] || ''}" onchange="sF('${k}','${f}',this.value)"></label>`).join('')}<button class="btn" onclick="clF('${k}')">Limpar filtros</button></div>`;
+        )}${ft.map(([f, l]) => `<label>${l}<input type="date" value="${s.f[f] || ''}" onchange="anoOk(this.value)&&sF('${k}','${f}',this.value)"></label>`).join('')}<button class="btn" onclick="clF('${k}')">Limpar filtros</button></div>`;
 }
 // Aplica um filtro escolhido e redesenha a lista
 const sF = (k, f, v) => {
@@ -497,13 +497,13 @@ function rg() {
 // Tela Listas e Relatórios: abas Relatórios e Cadastros
 function relscr() {
     return (
-        head('Listas e Relatórios', 'Relatórios gerenciais e cadastros do sistema') +
+        head('Listas e Relatórios', 'Relatórios e cadastros do sistema') +
         `<div class="sg2"><button class="${sub == 'rel' ? 'on' : ''}" onclick="sub='rel';draw()">Relatórios</button><button class="${sub == 'cad' ? 'on' : ''}" onclick="sub='cad';draw()">Cadastros e parâmetros</button></div>` +
         (sub == 'cad'
             ? listas()
             : `<div class="rp">${RP.map(([k, n]) => `<button class="${RS.t == k ? 'on' : ''}" onclick="RS.t='${k}';draw()">${ic(k == 'resp' ? 'user' : 'chart', 16)} ${n}</button>`).join('')}</div>
 <div class="cd">
-    <div class="tb"><label class="nt">${RS.t == 'conc' ? 'Conclusão' : 'Entrada'} de <input type="date" value="${RS.a}" onchange="RS.a=this.value;rl()"></label><label class="nt">até <input type="date" value="${RS.b}" onchange="RS.b=this.value;rl()"></label><label class="nt">Responsável <select onchange="RS.r=this.value;rl()"><option value="">Todos</option>${L.resp.map(x => `<option ${RS.r == x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label><span class="sp"></span><button class="btn" onclick="rx('x')">${ic('xls', 16)} Excel</button><button class="btn" onclick="rx('p')">${ic('pdf', 16)} PDF</button></div>
+    <div class="tb"><label class="nt">${RS.t == 'conc' ? 'Conclusão' : 'Entrada'} de <input type="date" value="${RS.a}" onchange="if(anoOk(this.value)){RS.a=this.value;rl()}"></label><label class="nt">até <input type="date" value="${RS.b}" onchange="if(anoOk(this.value)){RS.b=this.value;rl()}"></label><label class="nt">Responsável <select onchange="RS.r=this.value;rl()"><option value="">Todos</option>${L.resp.map(x => `<option ${RS.r == x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label><span class="sp"></span><button class="btn" onclick="rx('x')">${ic('xls', 16)} Excel</button><button class="btn" onclick="rx('p')">${ic('pdf', 16)} PDF</button></div>
     <div id="rr">
     </div>
     </div>`)

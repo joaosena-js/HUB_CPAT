@@ -82,7 +82,7 @@ function usuScr() {
             </div>
 <div class="cd">
     <h3>${ic('history', 18)} Log de atividades</h3>
-    <div class="tb"><label class="nt">Usuário <select onchange="LF.u=this.value;logLoad()"><option value="">Todos</option>${US.map(u => `<option value="${u.id}" ${LF.u == u.id ? 'selected' : ''}>${esc(u.nome)}</option>`).join('')}</select></label><label class="nt">De <input type="date" value="${LF.de}" onchange="LF.de=this.value;logLoad()"></label><label class="nt">Até <input type="date" value="${LF.ate}" onchange="LF.ate=this.value;logLoad()"></label><span class="sp"></span><button class="btn" onclick="xp('Log de atividades',LH,LGA.map(lr),'x')">${ic('xls', 16)} Excel</button></div>
+    <div class="tb"><label class="nt">Usuário <select onchange="LF.u=this.value;logLoad()"><option value="">Todos</option>${US.map(u => `<option value="${u.id}" ${LF.u == u.id ? 'selected' : ''}>${esc(u.nome)}</option>`).join('')}</select></label><label class="nt">De <input type="date" value="${LF.de}" onchange="if(anoOk(this.value)){LF.de=this.value;logLoad()}"></label><label class="nt">Até <input type="date" value="${LF.ate}" onchange="if(anoOk(this.value)){LF.ate=this.value;logLoad()}"></label><span class="sp"></span><button class="btn" onclick="xp('Log de atividades',LH,LGA.map(lr),'x')">${ic('xls', 16)} Excel</button></div>
     <p class="nt">${LGA.length} registro(s)${LGA.length >= 1000 ? ' (exibindo os 1000 mais recentes; use o filtro de datas)' : ''}</p>
     <div class="tw" style="max-height:60vh">
     <table>
