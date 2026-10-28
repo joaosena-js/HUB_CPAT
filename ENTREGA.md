@@ -1,5 +1,17 @@
 # Hub DBM: entrega
 
+## Versão 6.9: cabeçalho do PDF dos Gerenciais
+
+No PDF da tela Gerenciais, o título passou de "Relatório gerencial" para **Relatório Controle de Processos**. Acima dele aparece **Departamento de Bens Móveis - DBM**, no lugar de "Coordenadoria de Patrimônio · DBM". O nome sugerido ao salvar o PDF segue o novo título. O Excel e os PDFs das outras telas não mudaram.
+
+| Arquivo | Situação |
+|---|---|
+| `js/relatorios.js` | alterado |
+
+Publicação: substitua o arquivo (ou aplique `hub-dbm-v6.9.patch` com `git am --keep-cr` sobre a v6.8), faça o push e recarregue com Ctrl + F5.
+
+---
+
 ## Versão 6.8: tela Gerenciais
 
 **Digitação do ano nas datas:** ao digitar o ano num campo de data, o navegador entrega valores intermediários (0002, 0020, 0202) antes de chegar a 2026. A tela era redesenhada a cada um deles, e não dava para terminar de digitar. Agora o filtro só é aplicado quando o ano tem 4 dígitos de verdade. A correção vale para o intervalo e o mês da tela Gerenciais e para os filtros de data de Processos, Listas e Relatórios, Atendimentos e Log de atividades.
