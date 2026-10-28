@@ -1,5 +1,31 @@
 # Hub DBM: entrega
 
+## Versão 6.7: código organizado e guia de leitura
+
+Esta versão não muda nada do que aparece na tela. Ela organiza o código para que seja possível ler e entender.
+
+**Indentação e quebras de linha:** todos os arquivos de `js/`, `api/` e `lib/` foram formatados com o Prettier: indentação de 4 espaços, uma instrução por linha e linhas de até 120 caracteres. O código passou de cerca de 3.300 para cerca de 5.100 linhas, porque o que antes ficava espremido em uma linha agora ocupa várias. Os trechos longos de HTML e as consultas SQL também foram quebrados em pontos seguros.
+
+**Comentários:** cada arquivo começa com um comentário dizendo o que contém, e cada função tem uma linha acima explicando o que faz. As variáveis principais, como `D`, `L`, `ME`, `AT` e `EV`, também estão explicadas onde são criadas.
+
+**Guia de leitura:** o arquivo novo `GUIA-DO-CODIGO.md` traz o mapa de arquivos, o caminho completo de um clique (do botão até o banco), os nomes curtos mais usados, onde mexer em mudanças comuns e como manter a formatação no VS Code.
+
+**Como foi conferido que nada mudou:**
+- A estrutura lógica de cada arquivo foi comparada automaticamente com a versão anterior, depois de formatada: os 12 arquivos são idênticos.
+- As 37 telas e janelas principais foram fotografadas antes e depois, com os mesmos dados. As únicas diferenças eram a hora preenchida no formulário e o log de atividades, que mudam a cada execução.
+- Os testes das versões anteriores (calendário, importação, relatórios, exportações e as melhorias da v6.6) passaram.
+
+**Uma correção pequena:** durante os testes apareceu um ponto frágil. Se um processo fosse gravado sem status (por exemplo, numa importação de planilha sem essa coluna), todas as telas de processos deixavam de abrir. Agora esse processo é tratado como em aberto e o sistema continua funcionando. É a única alteração de comportamento desta versão.
+
+| Arquivo | Situação |
+|---|---|
+| `GUIA-DO-CODIGO.md`, `.prettierrc.json` | novos |
+| todos os arquivos de `js/`, `api/` e `lib/` | reformatados e comentados |
+
+Publicação: substitua os arquivos (ou aplique `hub-dbm-v6.7.patch` com `git am --keep-cr` sobre a v6.6), faça o push e recarregue com Ctrl + F5. Como quase todas as linhas mudaram de posição, se você tiver alterações locais ainda não enviadas, envie-as antes ou guarde uma cópia, para evitar conflitos.
+
+---
+
 ## Versão 6.6: melhorias de uso e de Excel
 
 **Excel dos relatórios** (telas de processos, Listas e Relatórios, Atendimentos e Calendário):

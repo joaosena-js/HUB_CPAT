@@ -1,16 +1,118 @@
 // Usuários e log de atividades (somente administrador; o servidor também bloqueia para os demais perfis)
-let US = [], LGA = [], LF = { u: '', de: '', ate: '' };
-const AC = { login: 'Entrou no sistema', logout: 'Saiu do sistema', login_falha: 'Acesso recusado', setup: 'Configuração inicial', processo_criado: 'Cadastrou processo', processo_alterado: 'Alterou processo', processo_excluido: 'Excluiu processo', historico: 'Registrou andamento', importacao: 'Importou dados', atendimentos_importados: 'Importou atendimentos', listas: 'Alterou cadastros', usuario_criado: 'Criou usuário', usuario_alterado: 'Alterou usuário', senha_alterada: 'Alterou a própria senha', atendimento_criado: 'Registrou atendimento', atendimento_alterado: 'Alterou atendimento', atendimento_excluido: 'Excluiu atendimento', historico_atendimento: 'Registrou andamento de atendimento', evento_criado: 'Lançou evento no calendário', evento_alterado: 'Alterou evento do calendário', evento_excluido: 'Excluiu evento do calendário', anexo_enviado: 'Anexou arquivo a evento', anexo_removido: 'Removeu anexo de evento' };
-function usuLoad() { run(async () => { const [a, b] = await Promise.all([api({ op: 'usuarios' }), api({ op: 'log', ...LF })]); US = a.usuarios; LGA = b.log; if (tab == 'usu') draw() }) }
-function logLoad() { run(async () => { LGA = (await api({ op: 'log', ...LF })).log; if (tab == 'usu') draw() }) }
-function usuScr() {
-    return head('Usuários e Log', 'Acesso individual dos servidores e registro das atividades no sistema', `<button class="btn p" onclick="usuEd(0)">${ic('plus', 16)} Novo usuário</button>`) + `<div class="cd" style="margin-bottom:18px"><h3>${ic('user', 18)} Usuários (${US.length})</h3><div class="tw"><table><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Responsável vinculado</th><th>Situação</th><th>Último acesso</th><th>Ações</th></tr></thead><tbody>${US.map(u => `<tr onclick="usuEd(${u.id})"><td>${esc(u.nome)}</td><td>${esc(u.login)}</td><td>${u.perfil == 'admin' ? 'Administrador' : 'Servidor'}</td><td>${esc(u.responsavel) || '—'}</td><td><span class="bd ${u.ativo ? 'g' : 'r'}">${u.ativo ? 'Ativo' : 'Inativo'}</span></td><td>${esc(u.ultimo_acesso) || '—'}</td><td><button class="btn s" title="Editar">${ic('pen', 14)}</button></td></tr>`).join('')}</tbody></table></div></div>
-<div class="cd"><h3>${ic('history', 18)} Log de atividades</h3><div class="tb"><label class="nt">Usuário <select onchange="LF.u=this.value;logLoad()"><option value="">Todos</option>${US.map(u => `<option value="${u.id}" ${LF.u == u.id ? 'selected' : ''}>${esc(u.nome)}</option>`).join('')}</select></label><label class="nt">De <input type="date" value="${LF.de}" onchange="LF.de=this.value;logLoad()"></label><label class="nt">Até <input type="date" value="${LF.ate}" onchange="LF.ate=this.value;logLoad()"></label><span class="sp"></span><button class="btn" onclick="xp('Log de atividades',LH,LGA.map(lr),'x')">${ic('xls', 16)} Excel</button></div><p class="nt">${LGA.length} registro(s)${LGA.length >= 1000 ? ' (exibindo os 1000 mais recentes; use o filtro de datas)' : ''}</p><div class="tw" style="max-height:60vh"><table><thead><tr>${LH.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${LGA.map(x => `<tr style="cursor:default">${lr(x).map(c => `<td>${esc(c) || '—'}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`
+// US = usuários; LGA = linhas do log de atividades; LF = filtros do log
+let US = [],
+    LGA = [],
+    LF = { u: '', de: '', ate: '' };
+const AC = {
+    login: 'Entrou no sistema',
+    logout: 'Saiu do sistema',
+    login_falha: 'Acesso recusado',
+    setup: 'Configuração inicial',
+    processo_criado: 'Cadastrou processo',
+    processo_alterado: 'Alterou processo',
+    processo_excluido: 'Excluiu processo',
+    historico: 'Registrou andamento',
+    importacao: 'Importou dados',
+    atendimentos_importados: 'Importou atendimentos',
+    listas: 'Alterou cadastros',
+    usuario_criado: 'Criou usuário',
+    usuario_alterado: 'Alterou usuário',
+    senha_alterada: 'Alterou a própria senha',
+    atendimento_criado: 'Registrou atendimento',
+    atendimento_alterado: 'Alterou atendimento',
+    atendimento_excluido: 'Excluiu atendimento',
+    historico_atendimento: 'Registrou andamento de atendimento',
+    evento_criado: 'Lançou evento no calendário',
+    evento_alterado: 'Alterou evento do calendário',
+    evento_excluido: 'Excluiu evento do calendário',
+    anexo_enviado: 'Anexou arquivo a evento',
+    anexo_removido: 'Removeu anexo de evento',
+};
+// Carrega a lista de usuários
+function usuLoad() {
+    run(async () => {
+        const [a, b] = await Promise.all([api({ op: 'usuarios' }), api({ op: 'log', ...LF })]);
+        US = a.usuarios;
+        LGA = b.log;
+        if (tab == 'usu') draw();
+    });
 }
-const LH = ['Data e hora', 'Usuário', 'Ação', 'Detalhe', 'IP'], lr = x => [x.quando, x.usuario_nome || (x.acao == 'login_falha' ? '(não identificado)' : ''), AC[x.acao] || x.acao, x.detalhe, x.ip];
+// Carrega o log de atividades com os filtros escolhidos
+function logLoad() {
+    run(async () => {
+        LGA = (await api({ op: 'log', ...LF })).log;
+        if (tab == 'usu') draw();
+    });
+}
+// Tela Usuários e log de atividades
+function usuScr() {
+    return (
+        head(
+            'Usuários e Log',
+            'Acesso individual dos servidores e registro das atividades no sistema',
+            `<button class="btn p" onclick="usuEd(0)">${ic('plus', 16)} Novo usuário</button>`
+        ) +
+        `<div class="cd" style="margin-bottom:18px">
+            <h3>${ic('user', 18)} Usuários (${US.length})</h3>
+            <div class="tw">
+            <table>
+            <thead>
+            <tr>
+            <th>Nome</th>
+            <th>Login</th>
+            <th>Perfil</th>
+            <th>Responsável vinculado</th>
+            <th>Situação</th>
+            <th>Último acesso</th>
+            <th>Ações</th>
+            </tr>
+            </thead>
+            <tbody>${US.map(
+                u => `<tr onclick="usuEd(${u.id})"><td>${esc(u.nome)}</td>
+            <td>${esc(u.login)}</td>
+            <td>${u.perfil == 'admin' ? 'Administrador' : 'Servidor'}</td>
+            <td>${esc(u.responsavel) || '—'}</td>
+            <td><span class="bd ${u.ativo ? 'g' : 'r'}">${u.ativo ? 'Ativo' : 'Inativo'}</span></td>
+            <td>${esc(u.ultimo_acesso) || '—'}</td>
+            <td><button class="btn s" title="Editar">${ic('pen', 14)}</button></td>
+            </tr>`
+            ).join('')}</tbody>
+            </table>
+            </div>
+            </div>
+<div class="cd">
+    <h3>${ic('history', 18)} Log de atividades</h3>
+    <div class="tb"><label class="nt">Usuário <select onchange="LF.u=this.value;logLoad()"><option value="">Todos</option>${US.map(u => `<option value="${u.id}" ${LF.u == u.id ? 'selected' : ''}>${esc(u.nome)}</option>`).join('')}</select></label><label class="nt">De <input type="date" value="${LF.de}" onchange="LF.de=this.value;logLoad()"></label><label class="nt">Até <input type="date" value="${LF.ate}" onchange="LF.ate=this.value;logLoad()"></label><span class="sp"></span><button class="btn" onclick="xp('Log de atividades',LH,LGA.map(lr),'x')">${ic('xls', 16)} Excel</button></div>
+    <p class="nt">${LGA.length} registro(s)${LGA.length >= 1000 ? ' (exibindo os 1000 mais recentes; use o filtro de datas)' : ''}</p>
+    <div class="tw" style="max-height:60vh">
+    <table>
+    <thead>
+    <tr>${LH.map(x => `<th>${x}</th>`).join('')}</tr>
+    </thead>
+    <tbody>${LGA.map(
+        x =>
+            `<tr style="cursor:default">${lr(x)
+                .map(c => `<td>${esc(c) || '—'}</td>`)
+                .join('')}</tr>`
+    ).join('')}</tbody></table></div></div>`
+    );
+}
+const LH = ['Data e hora', 'Usuário', 'Ação', 'Detalhe', 'IP'],
+    lr = x => [
+        x.quando,
+        x.usuario_nome || (x.acao == 'login_falha' ? '(não identificado)' : ''),
+        AC[x.acao] || x.acao,
+        x.detalhe,
+        x.ip,
+    ];
+// Formulário de usuário (id 0 = novo usuário)
 function usuEd(id) {
-    const u = id ? US.find(x => x.id == id) : { id: 0, nome: '', login: '', responsavel: '', perfil: 'servidor', ativo: true }; if (!u) return;
-    $('#dd').innerHTML = `<h2><span>${id ? 'Editar usuário' : 'Novo usuário'}</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2><form class="fm" onsubmit="event.preventDefault();usuSv(${u.id})">
+    const u = id
+        ? US.find(x => x.id == id)
+        : { id: 0, nome: '', login: '', responsavel: '', perfil: 'servidor', ativo: true };
+    if (!u) return;
+    $('#dd').innerHTML =
+        `<h2><span>${id ? 'Editar usuário' : 'Novo usuário'}</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2><form class="fm" onsubmit="event.preventDefault();usuSv(${u.id})">
 <label class="w">Nome completo<input id="u_nome" value="${esc(u.nome)}" required minlength="3" maxlength="100"></label>
 <label>Login<input id="u_login" value="${esc(u.login)}" ${id ? 'disabled' : 'required'} pattern="[a-z0-9._]{3,40}" title="De 3 a 40 caracteres: letras minúsculas, números, ponto ou sublinhado" autocapitalize="none" spellcheck="false"></label>
 <label>Perfil<select id="u_perfil"><option value="servidor" ${u.perfil != 'admin' ? 'selected' : ''}>Servidor</option><option value="admin" ${u.perfil == 'admin' ? 'selected' : ''}>Administrador</option></select></label>
@@ -18,10 +120,39 @@ function usuEd(id) {
 <label>Situação<select id="u_ativo"><option value="1" ${u.ativo ? 'selected' : ''}>Ativo</option><option value="0" ${u.ativo ? '' : 'selected'}>Inativo</option></select></label>
 <label class="w">${id ? 'Nova senha (deixe em branco para manter a atual)' : 'Senha inicial'}<input type="password" id="u_senha" minlength="8" maxlength="200" autocomplete="new-password" ${id ? '' : 'required'}></label>
 <p class="nt w" style="margin:0">O responsável vinculado liga o usuário ao nome usado no campo Responsável dos processos; é ele que define o aviso exibido ao entrar. A senha precisa ter pelo menos 8 caracteres. Entregue a senha inicial de forma reservada e oriente a troca em "Alterar minha senha".</p>
-<div class="w" style="display:flex;gap:8px"><button class="btn p">${ic('ok', 15)} Salvar</button><button type="button" class="btn" onclick="$('#dd').close()">Cancelar</button></div></form>`; $('#dd').showModal()
+<div class="w" style="display:flex;gap:8px"><button class="btn p">${ic('ok', 15)} Salvar</button><button type="button" class="btn" onclick="$('#dd').close()">Cancelar</button></div></form>`;
+    $('#dd').showModal();
 }
-function usuSv(id) { const b = { op: 'usuario_salvar', id, nome: $('#u_nome').value.trim(), login: $('#u_login').value.trim(), perfil: $('#u_perfil').value, responsavel: $('#u_resp').value, ativo: $('#u_ativo').value == '1', senha: $('#u_senha').value }; run(async () => { await api(b); $('#dd').close(); usuLoad() }) }
+// Grava o usuário
+function usuSv(id) {
+    const b = {
+        op: 'usuario_salvar',
+        id,
+        nome: $('#u_nome').value.trim(),
+        login: $('#u_login').value.trim(),
+        perfil: $('#u_perfil').value,
+        responsavel: $('#u_resp').value,
+        ativo: $('#u_ativo').value == '1',
+        senha: $('#u_senha').value,
+    };
+    run(async () => {
+        await api(b);
+        $('#dd').close();
+        usuLoad();
+    });
+}
+// Janela para o próprio usuário trocar a senha
 function senha() {
-    $('#dd').innerHTML = `<h2><span>Alterar minha senha</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2><form class="fm" style="grid-template-columns:1fr" onsubmit="event.preventDefault();senhaSv()"><label>Senha atual<input type="password" id="s_a" required autocomplete="current-password"></label><label>Nova senha (mínimo 8 caracteres)<input type="password" id="s_n" required minlength="8" maxlength="200" autocomplete="new-password"></label><label>Repita a nova senha<input type="password" id="s_r" required minlength="8" maxlength="200" autocomplete="new-password"></label><div style="display:flex;gap:8px"><button class="btn p">Salvar</button><button type="button" class="btn" onclick="$('#dd').close()">Cancelar</button></div></form>`; $('#dd').showModal()
+    $('#dd').innerHTML =
+        `<h2><span>Alterar minha senha</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2><form class="fm" style="grid-template-columns:1fr" onsubmit="event.preventDefault();senhaSv()"><label>Senha atual<input type="password" id="s_a" required autocomplete="current-password"></label><label>Nova senha (mínimo 8 caracteres)<input type="password" id="s_n" required minlength="8" maxlength="200" autocomplete="new-password"></label><label>Repita a nova senha<input type="password" id="s_r" required minlength="8" maxlength="200" autocomplete="new-password"></label><div style="display:flex;gap:8px"><button class="btn p">Salvar</button><button type="button" class="btn" onclick="$('#dd').close()">Cancelar</button></div></form>`;
+    $('#dd').showModal();
 }
-function senhaSv() { if ($('#s_n').value != $('#s_r').value) return alert('A confirmação não confere com a nova senha.'); run(async () => { await api({ op: 'minha_senha', atual: $('#s_a').value, nova: $('#s_n').value }); $('#dd').close(); alert('Senha alterada.') }) }
+// Grava a nova senha
+function senhaSv() {
+    if ($('#s_n').value != $('#s_r').value) return alert('A confirmação não confere com a nova senha.');
+    run(async () => {
+        await api({ op: 'minha_senha', atual: $('#s_a').value, nova: $('#s_n').value });
+        $('#dd').close();
+        alert('Senha alterada.');
+    });
+}
