@@ -267,7 +267,7 @@ function rgQuadros() {
     const go_ = grupo(rec, r => r.orgao);
     Q.push({
         k: 'orgaos',
-        t: 'Interessados com mais processos recebidos',
+        t: 'Processos por interessados',
         h: ['Interessado', 'Recebidos', 'Concluídos no período', 'Em aguardo no fim'],
         r: Object.entries(go_)
             .map(([k, l]) => [k, l.length, l.filter(r => pConcl(r, a, b)).length, l.filter(r => pAberto(r, b)).length])
