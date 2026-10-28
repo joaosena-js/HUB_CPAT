@@ -1,4 +1,4 @@
-// Base do Hub DBM: ícones, acesso, comunicação com a API, navegação e funções de tela compartilhadas
+// Base do Hub Patrimonial (antigo Hub DBM): ícones, acesso, comunicação com a API, navegação e funções de tela compartilhadas
 const IC = {
     dash: '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
     inbox: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
@@ -33,7 +33,14 @@ const IC = {
     bank: '<line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/>',
     list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
     user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    car: '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/>',
+    cam: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+    clip: '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
+    print: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/>',
+    gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
 };
+// Versão do sistema, exibida abaixo do nome no menu lateral
+const VERSAO = '7.1';
 IC.pie = '<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>';
 IC.chat = '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
 IC.home =
@@ -44,7 +51,10 @@ IC.clip =
 // Desenha um ícone pelo nome (lista IC acima)
 const ic = (n, s = 18) =>
     `<svg class="i" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IC[n]}</svg>`;
-const TIPOS = ['Transferência', 'Alienação', 'Caixa do setor'],
+// Caixa do setor: desativada na v7.0. Os processos antigos continuam no banco para recategorizar, mas não entram novos.
+const CAIXA = 'Caixa do setor',
+    TIPOS = ['Transferência', 'Alienação', CAIXA],
+    TIPOS_ATIVOS = TIPOS.filter(t => t != CAIXA),
     MS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 // Dados carregados do servidor: D = processos, L = listas de cadastro, LAST = assinatura da última carga
 // (só redesenha quando algo mudou), ready = primeira carga concluída
@@ -165,6 +175,9 @@ async function load() {
         D = j.processos || [];
         if (j.listas) L = Object.assign(L, j.listas);
         L.assuntos_at = L.assuntos_at || [];
+        // Sugestões dos campos Tipo e Destinação dos veículos, ajustáveis em Listas e Parâmetros
+        L.tipos_veiculo = L.tipos_veiculo || [...VE_TIPOS_PAD];
+        L.destinacoes = L.destinacoes || [...VE_DEST_PAD];
         if (!j.listas || !D.length) {
             SEED = await (await fetch('/seed.json')).json();
             if (!j.listas) L = SEED.listas;
@@ -335,35 +348,52 @@ const hay = x =>
             x.bem,
         ].join(' ')
     );
-// tab = tela aberta no momento; sub = aba da tela Listas e Relatórios
-let tab = 'home',
-    sub = 'rel';
+// tab = tela aberta no momento
+let tab = 'home';
 // Itens com um único elemento são títulos de grupo do menu; o 4º elemento (1) indica tela só do administrador
 const NAV = [
     ['home', 'home', 'Início'],
     ['Gestão de Processos'],
     ['dash', 'dash', 'Dashboard'],
-    ['caixa', 'inbox', 'Caixa do Setor'],
     ['alien', 'archive', 'Alienações'],
     ['transf', 'swap', 'Transferências'],
     ['todos', 'files', 'Todos os Processos'],
-    ['vida', 'history', 'Vida do Processo'],
-    ['rel', 'chart', 'Listas e Relatórios'],
-    ['Gestão de Atendimentos'],
+    ['vida', 'history', 'Idade de Saldo'],
+    ['Gestão de Veículos'],
+    ['veic', 'car', 'Veículos'],
+    ['vproc', 'files', 'Processos'],
+    ['Gestão de Atendimento'],
     ['aten', 'chat', 'Atendimentos'],
     ['Calendário'],
     ['cal', 'cal', 'Calendário da equipe'],
     ['Relatórios'],
     ['relg', 'pie', 'Gerenciais'],
     ['Administração', , , 1],
-    ['usu', 'user', 'Usuários e Log', 1],
+    ['usu', 'user', 'Usuários', 1],
+    ['log', 'history', 'Log de atividades', 1],
+    ['par', 'gear', 'Listas e Parâmetros', 1],
 ];
+// Telas que não são listas de processos: cada uma tem a sua função de desenho
+const TELAS = {
+    home: () => inScr(),
+    dash: () => dash(),
+    veic: () => veScr(),
+    vproc: () => vpScr(),
+    aten: () => atScr(),
+    cal: () => caScr(),
+    relg: () => rgScr(),
+    usu: () => usuScr(),
+    log: () => logScr(),
+    par: () => parScr(),
+};
+// Telas que só o administrador abre (o servidor também bloqueia as operações delas)
+const SO_ADMIN = ['usu', 'log', 'par'];
 // Título da tela com subtítulo e botões à direita
 const head = (t, s, x = '') => `<div class="ph"><div><h2>${t}</h2><p>${s}</p></div><div>${x}</div></div>`;
 // Cartão de indicador do dashboard (ícone, rótulo, valor e variação)
 const kc = (i, c, l, v, d, o) =>
     `<div class="k ${c}"${o ? ` onclick="${o}" title="Abrir a tela"` : ''}><div class="ki">${ic(i, 22)}</div>
-        <div><span>${l}</span><b>${v}</b>${d ? `<em class="${d.c}" title="Últimos 30 dias vs. 30 dias anteriores">${d.t}</em>` : ''}</div>
+        <div><span>${l}</span><b>${v}</b>${d ? `<em class="${d.c}" title="${d.h ?? 'Últimos 30 dias vs. 30 dias anteriores'}">${d.t}</em>` : ''}</div>
         </div>`;
 // Variação dos últimos 30 dias em relação aos 30 anteriores
 function dv(rs, f) {
@@ -432,7 +462,7 @@ function mon(v) {
     )}</svg><div class="lgd"><span><i style="background:var(--pr)"></i>Entradas</span><span><i style="background:var(--ok)"></i>Concluídos</span></div>`;
 }
 // Colunas de texto livre ficam alinhadas à esquerda; as demais, centralizadas
-const TL = ['Descrição', 'Assunto', 'Motivo', 'Pauta', 'Observação'],
+const TL = ['Descrição', 'Assunto', 'Motivo', 'Pauta', 'Observação', 'Veículos vinculados'],
     tal = h => (TL.includes(h) ? ' class="tl"' : '');
 // Excel: datas dd/mm/aaaa viram data de verdade (permite filtrar e ordenar por data) e números em texto viram número
 function xlsTipos(ws) {
@@ -553,6 +583,7 @@ function xp(title, h, r, kind, sub) {
 }
 // Desenha o menu lateral e a tela atual (chamada sempre que algo muda)
 function draw() {
+    if ((SO_ADMIN.includes(tab) && ME && !adm()) || (!TELAS[tab] && !VD[tab])) tab = 'home';
     $('#nv').innerHTML = NAV.filter(x => !x[3] || adm())
         .map(([k, i, n]) =>
             i
@@ -565,26 +596,15 @@ function draw() {
         : (D.length || !adm()
               ? ''
               : `<div class="ib">O banco está vazio. <button class="btn p s" onclick="seed()">Carregar os ${SEED ? SEED.processos.length : ''} processos da planilha</button></div>`) +
-          (tab == 'dash'
-              ? dash()
-              : tab == 'rel'
-                ? relscr()
-                : tab == 'usu'
-                  ? usuScr()
-                  : tab == 'aten'
-                    ? atScr()
-                    : tab == 'relg'
-                      ? rgScr()
-                      : tab == 'cal'
-                        ? caScr()
-                        : tab == 'home'
-                          ? inScr()
-                          : screen(tab));
+          (TELAS[tab] ? TELAS[tab]() : screen(tab));
     sf();
+    // Depois de desenhar a tela, preenche as tabelas que têm pesquisa e filtros próprios
     if (ready) {
-        if (tab == 'rel') rl();
+        if (tab == 'relg' && RG.aba == 'proc') rl();
         else if (tab == 'aten') atList();
-        else if (tab != 'dash' && tab != 'usu' && tab != 'relg' && tab != 'cal' && tab != 'home') list(tab);
+        else if (tab == 'veic') veList();
+        else if (tab == 'vproc') vpList();
+        else if (VD[tab]) list(tab);
     }
 }
 // Troca de tela pelo menu
@@ -593,7 +613,8 @@ function go(t) {
     $('#sd').classList.remove('o');
     draw();
     scrollTo(0, 0);
-    if (t == 'usu') usuLoad();
+    if (t == 'usu' || t == 'log') usuLoad();
+    if (t == 'veic' || t == 'vproc' || t == 'home') veLoad();
     if (t == 'aten' || t == 'relg' || t == 'home') atLoad();
     if (t == 'cal' || t == 'relg' || t == 'home') evLoad();
 }
@@ -617,6 +638,7 @@ $('.lg i').innerHTML = ic('bank', 22);
 $('#mb').innerHTML = ic('menu', 22);
 $('#bn').innerHTML = ic('plus', 16) + ' <span class="tp-t">Novo processo</span>';
 $('#ba').innerHTML = ic('chat', 16) + ' <span class="tp-t">Novo atendimento</span>';
+$('#ver').textContent = 'Versão ' + VERSAO;
 $('#bt').innerHTML = ic(document.documentElement.dataset.t == 'dark' ? 'sun' : 'moon', 17);
 document.addEventListener('click', e => {
     if (!e.target.closest('.gs')) $('#gd').hidden = true;
@@ -631,6 +653,7 @@ const poll = () => {
         !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)
     ) {
         load();
+        if (tab == 'veic' || tab == 'vproc' || tab == 'home') veLoad(1);
         if (tab == 'aten' || tab == 'relg' || tab == 'home') atLoad(1);
         if (tab == 'cal' || tab == 'relg' || tab == 'home') evLoad(1);
     }

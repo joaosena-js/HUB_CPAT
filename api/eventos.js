@@ -2,6 +2,16 @@
 
 const crypto = require('crypto');
 const { Erro, ehData, txt, iniciar, usuarioDaSessao, semSessao, tratarErro } = require('../lib/comum');
+const {
+    ARQUIVOS,
+    MAXIMO,
+    blobOk,
+    blob,
+    conteudoConfere,
+    primeirosBytes,
+    linkEnvio,
+    linkLeitura,
+} = require('../lib/arquivos');
 
 const FERIADO = 'Feriado ou ponto facultativo',
     ANIVERSARIO = 'Aniversário';
@@ -14,40 +24,8 @@ const grupo = t => (PESSOAIS.includes(t) ? 'P' : t === FERIADO ? 'H' : t === ANI
 const ANO_ANIV = '2000';
 const ROTULOS = ['Ausente', 'Compromisso pessoal']; // o que a equipe vê na agenda do servidor
 const CATEGORIAS = ['Foto', 'ATA', 'Lista de presença', 'Outro documento'];
-const ARQUIVOS = { 'application/pdf': ['pdf'], 'image/jpeg': ['jpg', 'jpeg'], 'image/png': ['png'] };
-const MAXIMO = 10 * 1024 * 1024,
-    ANEXOS_POR_EVENTO = 30;
+const ANEXOS_POR_EVENTO = 30;
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-// Vercel Blob em modo privado. Na Vercel, ao conectar o Blob ao projeto, BLOB_STORE_ID (com OIDC) ou BLOB_READ_WRITE_TOKEN já vêm configurados.
-function blob() {
-    if (!process.env.BLOB_STORE_ID && !process.env.BLOB_READ_WRITE_TOKEN)
-        throw new Erro(
-            'O armazenamento de anexos ainda não foi configurado na Vercel (Blob privado). Veja o ENTREGA.md.',
-            503
-        );
-    return require('@vercel/blob');
-}
-// Confere o conteúdo real do arquivo pelos primeiros bytes, sem confiar no nome nem no tipo informado pelo navegador
-function conteudoConfere(b, tipo) {
-    if (tipo === 'application/pdf') return b.subarray(0, 1024).includes('%PDF-');
-    if (tipo === 'image/jpeg') return b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
-    if (tipo === 'image/png')
-        return b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-    return false;
-}
-// Lê só os primeiros bytes de um arquivo enviado
-async function primeirosBytes(stream, n = 1024) {
-    const rd = stream.getReader();
-    let b = Buffer.alloc(0);
-    while (b.length < n) {
-        const { done, value } = await rd.read();
-        if (done) break;
-        b = Buffer.concat([b, Buffer.from(value)]);
-    }
-    await rd.cancel().catch(() => {});
-    return b;
-}
 
 // Consulta os eventos (id 0 = todos) com participantes e quantidade de anexos por categoria
 const consultar = (
@@ -236,7 +214,7 @@ module.exports = async (req, res) => {
             return res.json({
                 eventos: ev,
                 usuarios: u,
-                anexos_ok: !!(process.env.BLOB_STORE_ID || process.env.BLOB_READ_WRITE_TOKEN),
+                anexos_ok: blobOk(),
             });
         }
 
@@ -351,39 +329,14 @@ module.exports = async (req, res) => {
                     where not confirmado and criado_em < now() - interval '1 hour'
                     returning caminho`;
             if (velhos.length) await B.del(velhos.map(x => x.caminho)).catch(() => {});
-            const caminho = `eventos/${e.id}/${crypto.randomBytes(12).toString('hex')}.${ext === 'jpeg' ? 'jpg' : ext}`,
-                ate = Date.now() + 10 * 60e3;
-            const token = await B.issueSignedToken({
-                pathname: caminho,
-                operations: ['put'],
-                allowedContentTypes: [tipo],
-                maximumSizeInBytes: MAXIMO,
-                validUntil: ate,
-            });
-            const { presignedUrl } = await B.presignUrl(token, {
-                operation: 'put',
-                pathname: caminho,
-                access: 'private',
-                allowedContentTypes: [tipo],
-                maximumSizeInBytes: MAXIMO,
-                addRandomSuffix: false,
-                allowOverwrite: false,
-                validUntil: ate,
-            });
+            const caminho = `eventos/${e.id}/${crypto.randomBytes(12).toString('hex')}.${ext === 'jpeg' ? 'jpg' : ext}`;
+            const envio = await linkEnvio(B, caminho, tipo);
             const a = (
                 await sql`insert into evento_anexos(evento_id, categoria, nome, tipo, tamanho, caminho, enviado_por, enviado_por_nome)
                     values (${e.id}, ${categoria}, ${nome}, ${tipo}, ${tamanho}, ${caminho}, ${me.id}, ${me.nome})
                     returning id`
             )[0];
-            // Mesmos cabeçalhos que o SDK oficial usa no envio pelo navegador
-            const cab = {
-                'content-type': tipo,
-                'x-content-type': tipo,
-                'x-vercel-blob-access': 'private',
-                'x-api-version': '13',
-                'x-vercel-blob-store-id': B.parseStoreIdFromDelegationToken(token.delegationToken),
-            };
-            return res.json({ anexo_id: a.id, url: presignedUrl, headers: cab });
+            return res.json({ anexo_id: a.id, url: envio.url, headers: envio.headers });
         }
 
         if (b.op === 'anexo_confirmar') {
@@ -411,16 +364,7 @@ module.exports = async (req, res) => {
         if (b.op === 'anexo_abrir') {
             const a = (await sql`select * from evento_anexos where id = ${+b.anexo_id || 0} and confirmado`)[0];
             if (!a) throw new Erro('Anexo não encontrado', 404);
-            const B = blob(),
-                ate = Date.now() + 5 * 60e3;
-            const token = await B.issueSignedToken({ pathname: a.caminho, operations: ['get'], validUntil: ate });
-            const { presignedUrl } = await B.presignUrl(token, {
-                operation: 'get',
-                pathname: a.caminho,
-                access: 'private',
-                validUntil: ate,
-            });
-            return res.json({ url: presignedUrl });
+            return res.json({ url: await linkLeitura(blob(), a.caminho) });
         }
 
         if (b.op === 'anexo_remover') {

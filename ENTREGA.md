@@ -1,5 +1,121 @@
 # Hub DBM: entrega
 
+## Versão 7.1: importação da planilha de veículos
+
+**Importar planilha** é um botão novo na tela Veículos, só para o administrador. Ele lê a planilha "VEÍCULOS DEPÓSITO" no formato atual, com as colunas UNIDADE, PROCESSO, PLACA, TOMBO, TIPO, MODELO, ANO, CHASSI, RENAVAM, ÚLTIMO LICENCIAMENTO e DESTINAÇÃO.
+
+Antes de gravar, uma prévia mostra:
+- quantos veículos são novos e quantos já estão no Hub;
+- a contagem por órgão;
+- quantos processos já estão cadastrados no Hub;
+- como cada tipo foi convertido;
+- as linhas com erro, ajuste ou aviso.
+
+Com qualquer erro, nada é gravado. Importar o mesmo arquivo de novo não duplica, porque os veículos com mesma placa, chassi, RENAVAM ou tombo são ignorados.
+
+**Resultado com a planilha de 01/09/2026 (teste local):** os 78 veículos foram lidos e importados, sem nenhuma linha com erro.
+
+- **7 ajustes automáticos:**
+  - na linha 34 (PHM-9193), o RENAVAM "baixa no DETRAN" foi para as observações;
+  - nas linhas 44 a 49, o processo estava com "_" no lugar da barra e foi gravado com "/".
+- **4 avisos, para conferir no documento do veículo:**
+  - linha 69 (JXV-6062): o dígito verificador do RENAVAM não confere;
+  - linhas 70 (OAI-9875) e 79 (NOX-0679): o chassi tem 16 caracteres;
+  - linha 75 (NOY-5170): o chassi tem 18 caracteres e o dígito verificador do RENAVAM não confere.
+- **Tipos convertidos para os nomes do Hub:**
+  - CAMINHONETE e PICK´UP viraram Caminhonete;
+  - AUTOMOVEL, PAS/AUTOMOVEL e PASSEIO viraram Automóvel;
+  - CAMINHAO, ONIBUS, CAMIONETA e UTILITÁRIO ficaram com acento e inicial maiúscula.
+- **Linha 67 (PHM-9273):** está sem processo e entra assim.
+- **Órgãos:** "SSP" e "SSP-AM" aparecem separados na planilha e continuam separados no Hub. Se forem o mesmo órgão, padronize na planilha antes de importar, ou depois, no cadastro de cada veículo.
+
+**Mudanças no cadastro do veículo para receber a planilha:**
+- **Processo:** é gravado pelo número, mesmo que ainda não esteja cadastrado no Hub. Quando o número bate com um processo cadastrado (a comparação ignora pontos, barras e traços), o vínculo aparece sozinho, inclusive se o processo for cadastrado depois. A tela Processos (Gestão de Veículos) lista também os processos ainda não cadastrados, com a situação "Não cadastrado no Hub".
+- **Pendências:** o quadro ganhou a linha "Processo ainda não cadastrado no Hub".
+- **Ano:** aceita fabricação/modelo, como no documento (2010/2011), ou só o ano de fabricação.
+- **RENAVAM:** é gravado com 11 números. Os antigos, de 9, recebem zeros à esquerda, porque é o formato atual e porque o Excel apaga esses zeros. Assim, o mesmo RENAVAM escrito com ou sem zeros é reconhecido como repetido.
+- **Observações:** campo novo no cadastro do veículo, que também aparece no Excel.
+
+**Banco de dados:** a alteração é feita sozinha na primeira requisição. Se a v7.0 já estava publicada, os veículos cadastrados mantêm o processo, que passa a ser guardado pelo número. O `db/migracao_007_veiculos_importacao.sql` serve de registro.
+
+| Arquivo | Situação |
+|---|---|
+| `db/migracao_007_veiculos_importacao.sql` | novo |
+| `js/veiculos.js`, `api/veiculos.js`, `lib/comum.js`, `js/base.js` (versão 7.1), `GUIA-DO-CODIGO.md`, `ENTREGA.md` | alterados |
+
+Publicação: substitua os arquivos (ou aplique `hub-dbm-v7.1.patch` com `git am --keep-cr` sobre a v7.0), faça o push e recarregue com Ctrl + F5. Depois, entre como administrador, abra Veículos > Importar planilha e escolha o arquivo.
+
+---
+
+## Versão 7.0: Gestão de Veículos e novo menu
+
+### Módulo Gestão de Veículos
+
+**Veículos** (menu Gestão de Veículos > Veículos) substitui a planilha de controle do depósito.
+
+- **Cadastro:** ID (automático), Órgão, Processo, Placa, Tombo, Tipo, Modelo, Ano, Chassi, RENAVAM, Último licenciamento e Destinação. Também tem Situação documental, Entrada no depósito e Saída do depósito.
+- **Processo:** é opcional. Ao digitar o número, o sistema sugere os processos já cadastrados e só aceita um que exista.
+- **Datas:** a entrada é opcional. Com a saída em branco, o veículo conta como "no depósito".
+- **Conferências no servidor:**
+  - placa no formato antigo (ABC1234) ou Mercosul (ABC1D23);
+  - chassi e RENAVAM só com letras e números;
+  - ano e licenciamento entre 1900 e o ano que vem;
+  - pelo menos um identificador entre placa, chassi, RENAVAM e tombo;
+  - bloqueio de veículo repetido pela placa, chassi, RENAVAM ou tombo.
+- **Situação documental:** é marcada pelo usuário, com as opções Regularizado, Em regularização e Não regularizado. Os indicadores contam por ela.
+- **Fotos:** cada foto leva a parte do veículo que mostra, com sugestões (Frontal, Traseira, Lateral direita, Painel e hodômetro, Chassi etc.), e aparece como "Foto 1 - Frontal", "Foto 2 - Traseira". Detalhes:
+  - aceita JPG e PNG;
+  - fotos grandes são reduzidas no navegador antes do envio, para no máximo 1920 px;
+  - a parte pode ser trocada depois;
+  - quem enviou a foto, ou o administrador, pode removê-la.
+- **Lista de Verificação de Veículo:** é preenchida na tela, no mesmo formato do documento em papel. Inclui os 26 itens com S, N, I ou A, as avarias por vista do veículo (A, R, Q, F), as observações e os responsáveis pela entrega e pela vistoria.
+- **Impressão da Lista de Verificação:** o botão Imprimir gera a folha A4 do modelo, com o brasão, o desenho do veículo com as avarias marcadas e o rodapé da SEAD. A folha cabe em uma página. Sem a lista preenchida, a folha sai com os dados do veículo e o restante em branco, para preencher à mão.
+- **Topo da tela:**
+  - indicadores: No depósito, Regularizados, Em regularização, Não regularizados e Saíram do depósito no ano;
+  - destinação dos veículos no depósito;
+  - veículos por tipo e por órgão;
+  - quadro de **Pendências de cadastro**: sem Lista de Verificação, sem fotos, sem processo, sem destinação e sem situação informada. Cada linha abre a lista já filtrada.
+- **Lista:** tem pesquisa, filtros, Excel e PDF. O Excel traz os campos na mesma ordem da planilha usada hoje, mais situação, datas e fotos.
+- **Exclusão:** só o administrador exclui veículos, e as fotos são apagadas junto.
+
+**Processos** (Gestão de Veículos > Processos) lista os processos com veículos vinculados e mostra a quantidade de veículos de cada um. A tela também tem Excel e PDF.
+
+**Importar a planilha atual:** se o setor enviar a planilha de veículos usada hoje, dá para preparar a importação dela numa próxima versão.
+
+### Menu, versão e Caixa do Setor
+
+- O menu foi reorganizado:
+  - Início;
+  - Gestão de Processos: Dashboard, Alienações, Transferências, Todos os Processos e Idade de Saldo, o antigo Vida do Processo;
+  - Gestão de Veículos;
+  - Gestão de Atendimento;
+  - Calendário;
+  - Relatórios: Gerenciais;
+  - Administração: Usuários, Log de atividades e Listas e Parâmetros.
+- Usuários e Log de atividades viraram duas telas separadas.
+- **Listas e Parâmetros** (prazos de criticidade e listas de cadastro) agora fica em Administração e é **somente para o administrador**, também no servidor. Ganhou as listas Tipos de veículo e Destinações de veículos.
+- Os relatórios de processos que ficavam em "Listas e Relatórios" passaram para a tela Gerenciais, na aba **Relatórios de processos**.
+- A versão do sistema aparece abaixo de "HUB PATRIMONIAL Gestão e Controle".
+- **Caixa do Setor:**
+  - saiu do menu e não aceita processos novos, nem pelo formulário nem pela importação;
+  - os processos que já estavam nela continuam no banco e aparecem em Todos os Processos. Nada foi apagado;
+  - para recategorizar, abra o processo e troque o tipo para Alienação ou Transferência.
+
+### Atenção antes de usar
+
+1. **Fotos dependem do Blob.** O envio de fotos usa o mesmo armazenamento dos anexos do calendário (Vercel Blob privado). Enquanto ele não for criado, a tela mostra um aviso e o resto do módulo funciona normalmente. O passo a passo está na versão 5, abaixo. O plano gratuito tem 1 GB, por isso as fotos são reduzidas antes do envio.
+2. **Nomes de órgão.** Renomear um órgão em Listas e Parâmetros não altera os veículos já cadastrados com o nome antigo.
+3. **Banco de dados.** As tabelas `veiculos` e `veiculo_fotos` são criadas sozinhas na primeira requisição. O `db/migracao_006_veiculos.sql` serve de registro, ou para rodar antes no Neon.
+
+| Arquivo | Situação |
+|---|---|
+| `js/veiculos.js`, `api/veiculos.js`, `lib/arquivos.js`, `db/migracao_006_veiculos.sql`, `img/vistoria-cabecalho.png`, `img/vistoria-veiculo.png`, `img/vistoria-rodape.png` | novos |
+| `index.html`, `js/base.js`, `js/processos.js`, `js/usuarios.js`, `js/relatorios.js`, `js/inicio.js`, `js/atendimentos.js`, `api/data.js`, `api/eventos.js`, `lib/comum.js`, `GUIA-DO-CODIGO.md` | alterados |
+
+Publicação: copie a pasta inteira, incluindo a pasta nova `img/` (ou aplique `hub-dbm-v7.0.patch` com `git am --keep-cr` sobre a v6.9). Depois faça o push e recarregue com Ctrl + F5.
+
+---
+
 ## Versão 6.9: cabeçalho do PDF dos Gerenciais
 
 No PDF da tela Gerenciais, o título passou de "Relatório gerencial" para **Relatório Controle de Processos**. Acima dele aparece **Departamento de Bens Móveis - DBM**, no lugar de "Coordenadoria de Patrimônio · DBM". O nome sugerido ao salvar o PDF segue o novo título. O Excel e os PDFs das outras telas não mudaram.

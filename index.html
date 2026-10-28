@@ -1694,13 +1694,243 @@
                 transition: none !important
             }
         }
+
+        .lg #ver {
+            display: block;
+            opacity: .5;
+            font-size: 10px;
+            margin-top: 1px
+        }
+
+        .vg {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+            gap: 18px;
+            align-items: start;
+            margin-bottom: 18px
+        }
+
+        .vpd {
+            display: grid;
+            gap: 6px
+        }
+
+        .vpd button {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border: 1px solid var(--bd);
+            border-radius: 10px;
+            background: var(--c);
+            color: var(--tx);
+            font: inherit;
+            cursor: pointer;
+            text-align: left
+        }
+
+        .vpd button:hover:not(:disabled) {
+            border-color: var(--pr);
+            background: var(--pr2)
+        }
+
+        .vpd button:disabled {
+            cursor: default;
+            opacity: .6
+        }
+
+        .vpd b {
+            min-width: 28px;
+            text-align: center;
+            padding: 1px 8px;
+            border-radius: 20px;
+            background: var(--wn2);
+            color: var(--wn)
+        }
+
+        .vpd b.z {
+            background: var(--ok2);
+            color: var(--ok)
+        }
+
+        .vst {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin: 0 20px;
+            padding: 10px 12px;
+            border: 1px solid var(--bd);
+            border-radius: 10px;
+            font-size: 13px
+        }
+
+        .vf {
+            margin: 0 20px 6px
+        }
+
+        .vfg {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            margin-bottom: 10px
+        }
+
+        .vfg figure {
+            margin: 0;
+            border: 1px solid var(--bd);
+            border-radius: 10px;
+            overflow: hidden;
+            background: var(--c)
+        }
+
+        .vfg img,
+        .vfx {
+            display: block;
+            width: 100%;
+            aspect-ratio: 4/3;
+            object-fit: cover;
+            background: var(--bg)
+        }
+
+        .vfx {
+            display: grid;
+            place-items: center;
+            color: var(--mt);
+            font-size: 12px
+        }
+
+        .vfg figcaption {
+            padding: 6px 8px;
+            font-size: 12px;
+            display: grid;
+            gap: 2px
+        }
+
+        .vfg figcaption small {
+            color: var(--mt);
+            font-size: 11px
+        }
+
+        .vfg figcaption span {
+            display: flex;
+            gap: 4px;
+            margin-top: 2px
+        }
+
+        .vfe {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: end;
+            padding: 10px 12px;
+            border: 1px dashed var(--bd);
+            border-radius: 10px
+        }
+
+        .vfe label {
+            display: grid;
+            gap: 4px;
+            font-size: 12px;
+            color: var(--mt);
+            font-weight: 600
+        }
+
+        .vfe .nt {
+            flex-basis: 100%;
+            margin: 0
+        }
+
+        .vit {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+            gap: 12px;
+            margin-top: 6px
+        }
+
+        .vit table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px
+        }
+
+        .vit th,
+        .vit td {
+            border-bottom: 1px solid var(--bd);
+            padding: 4px 6px;
+            text-align: center
+        }
+
+        .vit th:first-child,
+        .vit td:first-child {
+            text-align: left
+        }
+
+        .vit input {
+            width: 16px;
+            height: 16px;
+            margin: 0;
+            cursor: pointer
+        }
+
+        .vav {
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+            gap: 14px;
+            align-items: start;
+            margin-top: 6px
+        }
+
+        .vav img {
+            width: 100%;
+            border: 1px solid var(--bd);
+            border-radius: 10px;
+            background: #fff
+        }
+
+        .vav>div {
+            display: grid;
+            gap: 8px
+        }
+
+        .vav>div>div {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px 12px;
+            align-items: center;
+            font-size: 12.5px
+        }
+
+        .vav>div>div b {
+            flex-basis: 100%
+        }
+
+        .fm .vav label {
+            display: inline-flex;
+            flex-direction: row;
+            gap: 4px;
+            align-items: center;
+            font-weight: 600
+        }
+
+        .vav small {
+            color: var(--mt);
+            font-weight: 400
+        }
+
+        @media (max-width: 720px) {
+            .vav {
+                grid-template-columns: 1fr
+            }
+        }
     </style>
 </head>
 
 <body>
     <aside id="sd">
         <div class="lg"><i></i>
-            <div><b>HUB PATRIMONIAL</b><small>Gestão e Controle</small></div>
+            <div><b>HUB PATRIMONIAL</b><small>Gestão e Controle</small><small id="ver"></small></div>
         </div>
         <nav id="nv"></nav>
         <div class="sf"><button onclick="xl()"></button><button onclick="bk()"></button><button
@@ -1741,6 +1971,7 @@
     <script src="/js/atendimentos.js"></script>
     <script src="/js/relatorios.js"></script>
     <script src="/js/calendario.js"></script>
+    <script src="/js/veiculos.js"></script>
     <script src="/js/inicio.js"></script>
     <script src="/js/usuarios.js"></script>
     <script src="/js/app.js"></script>

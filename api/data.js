@@ -19,6 +19,9 @@ const {
 } = require('../lib/comum');
 
 const TIPOS = ['Transferência', 'Alienação', 'Caixa do setor'];
+// Caixa do Setor desativada na v7.0: os processos antigos continuam no banco para serem recategorizados, mas não entram novos
+const CAIXA = 'Caixa do setor',
+    MSG_CAIXA = 'A Caixa do Setor foi desativada. Cadastre o processo como Alienação ou Transferência.';
 const CAMPOS = [
     'numero',
     'descricao',
@@ -41,7 +44,7 @@ const CAMPOS = [
 ];
 const DATAS = ['tram', 'datadoc', 'concl', 'mov'];
 const LISTAS = ['status', 'resp', 'orgaos', 'motivos', 'assuntos'],
-    LISTAS_OPCIONAIS = ['assuntos_at'];
+    LISTAS_OPCIONAIS = ['assuntos_at', 'tipos_veiculo', 'destinacoes'];
 const MAX_FALHAS = 5;
 // Nº do processo comparado sem pontos, barras, traços e espaços: "001.2026/12" e "0012026 12" são o mesmo processo
 const chave = n =>
@@ -197,6 +200,7 @@ module.exports = async (req, res) => {
                 antigo = antigo.data;
             }
             const novo = validarProcesso({ ...(antigo || {}), ...d }, true);
+            if (novo.tipo === CAIXA && (!antigo || antigo.tipo !== CAIXA)) throw new Erro(MSG_CAIXA);
             // Bloqueia nº repetido ao cadastrar ou ao trocar o número (repetições antigas não impedem editar outros campos)
             if (!antigo || chave(antigo.numero) !== chave(novo.numero)) {
                 const x = (await existentes(sql, [chave(novo.numero)], id))[0];
@@ -261,12 +265,13 @@ module.exports = async (req, res) => {
 
         if (b.op === 'merge') {
             soAdmin();
-            const dels = (b.deltipos || []).filter(t => TIPOS.includes(t));
+            const dels = (b.deltipos || []).filter(t => TIPOS.includes(t) && t !== CAIXA);
             const ups = (b.updates || []).map(u => ({
                 id: +u.id,
                 data: validarProcesso(limparProcesso(u.data || {})),
             }));
             const news = (b.news || []).map(d => validarProcesso(limparProcesso(d)));
+            if (news.some(d => d.tipo === CAIXA)) throw new Erro(MSG_CAIXA);
             const rep = repetidosNoLote(news);
             if (rep.length)
                 throw new Erro(
@@ -307,6 +312,7 @@ module.exports = async (req, res) => {
         }
 
         if (b.op === 'listas') {
+            soAdmin(); // Listas e Parâmetros fica em Administração desde a v7.0
             const l = b.listas || {},
                 v = {};
             for (const k of [...LISTAS, ...LISTAS_OPCIONAIS]) {

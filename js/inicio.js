@@ -25,11 +25,11 @@ function inScr() {
         ['dash', 'dash', 'Dashboard de processos', `${ab.length} em andamento`],
         ['transf', 'swap', 'Transferências', `${n('Transferência')} em andamento`],
         ['alien', 'archive', 'Alienações', `${n('Alienação')} em andamento`],
-        ['caixa', 'inbox', 'Caixa do Setor', `${n('Caixa do setor')} em andamento`],
+        ['veic', 'car', 'Veículos', `${VE.filter(v => !v.saida).length} no depósito`],
         ['aten', 'chat', 'Atendimentos', `${atA.length} em aberto`],
         ['cal', 'cal', 'Calendário da equipe', hj ? `${hj} evento(s) hoje` : 'nenhum evento hoje'],
         ['relg', 'pie', 'Gerenciais', 'indicadores por período'],
-        ...(adm() ? [['usu', 'user', 'Usuários e Log', 'acessos e registros']] : []),
+        ...(adm() ? [['usu', 'user', 'Usuários', 'acessos ao sistema']] : []),
     ];
     const dia = d => (d == h ? 'Hoje' : d == addDias(h, 1) ? 'Amanhã' : EV_DS[evDow(d)] + ', ' + fmt(d).slice(0, 5));
     const card = (i, t, sub, corpo, rod) =>
@@ -59,7 +59,7 @@ function inScr() {
             'Meus processos em andamento',
             mp.length ? `${Math.min(5, mp.length)} de ${mp.length}, do mais antigo` : '',
             !ME || !ME.responsavel
-                ? '<p class="nt">Seu usuário ainda não está vinculado a um responsável da lista de processos. Peça ao administrador para fazer o vínculo em Usuários e Log.</p>'
+                ? '<p class="nt">Seu usuário ainda não está vinculado a um responsável da lista de processos. Peça ao administrador para fazer o vínculo em Administração > Usuários.</p>'
                 : mp.length
                   ? `<div class="pl" style="max-height:none">${mp.slice(0, 5).map(pItem).join('')}</div>`
                   : '<p class="nt">Nenhum processo seu aguardando providência.</p>',

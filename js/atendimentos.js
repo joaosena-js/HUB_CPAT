@@ -581,7 +581,7 @@ function atImpPrev() {
             )
             .join(
                 ''
-            )}${sm ? '<p class="nt" style="margin:6px 0 0">Se a pessoa ainda não tem usuário, cadastre em Usuários e Log e abra a importação de novo.</p>' : ''}</div>` +
+            )}${sm ? '<p class="nt" style="margin:6px 0 0">Se a pessoa ainda não tem usuário, cadastre em Administração > Usuários e abra a importação de novo.</p>' : ''}</div>` +
         (er.length
             ? `<div style="margin-top:12px;color:var(--er)"><b>${er.length} linha(s) com erro.</b> Corrija na planilha e escolha o arquivo de novo. Nada será importado enquanto houver erro.${lista(er, x => x.erros)}</div>`
             : '') +

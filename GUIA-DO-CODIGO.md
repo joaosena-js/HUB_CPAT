@@ -10,7 +10,7 @@ O sistema tem três partes, e cada uma fica em uma pasta.
 |---|---|---|
 | Navegador (o que o usuário vê) | `index.html` e a pasta `js/` | Desenha as telas, os formulários, os filtros, os gráficos e as exportações em Excel e PDF |
 | Servidor (as regras) | pastas `api/` e `lib/` | Confere quem está logado e o que cada perfil pode fazer, valida os dados e grava no banco |
-| Banco de dados | Neon (PostgreSQL), com scripts na pasta `db/` | Guarda processos, atendimentos, eventos, usuários, histórico e log |
+| Banco de dados | Neon (PostgreSQL), com scripts na pasta `db/` | Guarda processos, atendimentos, eventos, veículos, usuários, histórico e log |
 
 Uma regra importante: o navegador pode ser manipulado por quem usa o sistema, por isso toda regra de segurança fica no servidor. Esconder um botão na tela melhora a experiência, mas quem protege é o servidor.
 
@@ -22,13 +22,14 @@ Os arquivos são carregados pelo `index.html` nesta ordem, e cada um pode usar o
 
 | Arquivo | Conteúdo |
 |---|---|
-| `js/base.js` | Funções usadas por todas as telas: ícones, login, comunicação com o servidor (`api`), menu, troca de tela (`go`, `draw`), tema claro e escuro, pop-up Resumo do dia, exportação para Excel e PDF |
-| `js/processos.js` | Gestão de Processos: Dashboard, Caixa do Setor, Alienações, Transferências, Todos os Processos, Vida do Processo, detalhe com histórico, formulário, Listas e Relatórios, cadastros e importação de planilha |
+| `js/base.js` | Funções usadas por todas as telas: ícones, versão do sistema (`VERSAO`), login, comunicação com o servidor (`api`), menu (`NAV`), qual função desenha cada tela (`TELAS`), troca de tela (`go`, `draw`), tema claro e escuro, pop-up Resumo do dia, exportação para Excel e PDF |
+| `js/processos.js` | Gestão de Processos: Dashboard, Alienações, Transferências, Todos os Processos, Idade de Saldo, detalhe com histórico, formulário, relatórios de processos, tela Listas e Parâmetros e importação de planilha |
 | `js/atendimentos.js` | Gestão de Atendimentos: tela, filtros, detalhe com histórico, formulário e importação de planilha |
-| `js/relatorios.js` | Tela Gerenciais (quadros por mês, trimestre, ano ou intervalo de datas, com comparação ao período anterior, e escolha do que entra no PDF e no Excel) |
+| `js/relatorios.js` | Tela Gerenciais: aba Indicadores do período (quadros por mês, trimestre, ano ou intervalo, comparação com o período anterior e escolha do que entra no PDF e no Excel) e aba Relatórios de processos |
 | `js/calendario.js` | Calendário: reuniões, treinamentos, outros eventos, férias, agenda do servidor, feriados e aniversários, anexos e exportação por tipo |
+| `js/veiculos.js` | Gestão de Veículos: tela Veículos (indicadores, pendências, lista), detalhe com fotos, formulário, Lista de Verificação e a impressão dela, importação da planilha do depósito e a tela Processos com veículos |
 | `js/inicio.js` | Tela Início, com os atalhos, a agenda da semana e os itens do usuário |
-| `js/usuarios.js` | Usuários e log de atividades (somente administrador) |
+| `js/usuarios.js` | Telas Usuários e Log de atividades (somente administrador) |
 | `js/app.js` | Último a ser carregado: desenha a primeira tela e liga a atualização automática |
 
 ### Servidor (`api/` e `lib/`)
@@ -38,7 +39,9 @@ Os arquivos são carregados pelo `index.html` nesta ordem, e cada um pode usar o
 | `lib/comum.js` | Base de todas as APIs: conexão com o banco, criação das tabelas, senhas (scrypt), sessão (cookie assinado), validação de datas e textos, registro no log |
 | `api/data.js` | Login, sessão, processos, listas de cadastro, usuários e log |
 | `api/atendimentos.js` | Atendimentos e o histórico deles, incluindo a importação |
-| `api/eventos.js` | Calendário, participantes, permissões por tipo de evento e anexos (Vercel Blob) |
+| `api/eventos.js` | Calendário, participantes, permissões por tipo de evento e anexos |
+| `api/veiculos.js` | Veículos, importação, Lista de Verificação e fotos |
+| `lib/arquivos.js` | Envio e leitura de arquivos no Vercel Blob privado, usado pelos anexos do calendário e pelas fotos dos veículos. Confere o conteúdo real do arquivo antes de aceitar |
 
 ### Outros arquivos
 
@@ -46,6 +49,7 @@ Os arquivos são carregados pelo `index.html` nesta ordem, e cada um pode usar o
 |---|---|
 | `index.html` | Estrutura da página e todo o visual (CSS: cores, tamanhos, versão para celular) |
 | `db/migracao_00X_*.sql` | Scripts que criam ou alteram tabelas no banco, em ordem |
+| `img/` | Imagens da impressão da Lista de Verificação: brasão do cabeçalho, desenho do veículo e rodapé da SEAD |
 | `seed.json` | Dados de exemplo usados só para carregar um banco vazio |
 | `xlsx.min.js` | Biblioteca pronta que lê e gera planilhas Excel. Não deve ser editada |
 | `.prettierrc.json` | Regras de formatação do código (veja a seção 7) |
@@ -96,6 +100,7 @@ Alguns nomes são curtos porque são usados centenas de vezes. Os principais:
 | `adm()` | Verdadeiro quando o usuário logado é administrador |
 | `AT` | Lista de atendimentos carregados |
 | `EV` | Lista de eventos do calendário |
+| `VE` | Lista de veículos carregados |
 | `tab` | Tela aberta no momento |
 | `draw()` | Redesenha a tela atual |
 | `go('tela')` | Troca de tela |
@@ -103,19 +108,21 @@ Alguns nomes são curtos porque são usados centenas de vezes. Os principais:
 | `done(processo)` | Verdadeiro quando o processo está concluído (status começa com CONCLU) |
 | `#dd` e `#dg` | Janelas que abrem por cima da tela. `#dd` é usada por quase tudo (detalhes, formulários de atendimento e evento, importações); `#dg` é o formulário de processo |
 
-Os prefixos ajudam a saber de qual módulo é cada função: `at` é de atendimentos (`atEd`, `atSv`), `ev` e `ca` são do calendário (`evEd`, `caMes`), `rg` é da tela Gerenciais, `usu` é de usuários e `in` é da tela Início.
+Os prefixos ajudam a saber de qual módulo é cada função: `at` é de atendimentos (`atEd`, `atSv`), `ev` e `ca` são do calendário (`evEd`, `caMes`), `ve` é de veículos (`veEd`, `veDet`), `vp` é da tela Processos com veículos, `rg` é da tela Gerenciais, `usu` é de usuários e `in` é da tela Início.
 
 ## 6. Onde mexer para mudanças comuns
 
 | Quero mudar | Onde |
 |---|---|
 | Cores, tamanhos, espaçamentos | `index.html`, no bloco `<style>`. As cores ficam em variáveis como `--pr` no início do bloco |
-| Itens do menu lateral | `js/base.js`, lista `NAV` |
+| Itens do menu lateral | `js/base.js`, lista `NAV` (e `TELAS`, quando for uma tela nova) |
 | Colunas da tabela de processos | `js/processos.js`, lista `CT` |
 | Colunas da tabela de atendimentos | `js/atendimentos.js`, lista `AT_C` (tela) e `AT_X` (exportação) |
 | Canais, categorias e situações de atendimento | `js/atendimentos.js` (`AT_CANAIS`, `AT_CATS`, `AT_SIT`) e também `api/atendimentos.js` (`CANAIS`, `CATEGORIAS`, `SITUACOES`), porque o servidor confere os mesmos valores |
 | Tipos de evento do calendário | `js/calendario.js` e `api/eventos.js`, além de uma migração na pasta `db/`, porque o banco também restringe os tipos |
-| Prazos de Atenção e Crítico | Pela própria tela, em Listas e Relatórios, aba Cadastros. Não precisa mexer no código |
+| Prazos de Atenção e Crítico, sugestões de tipo e destinação de veículo | Pela própria tela, em Administração > Listas e Parâmetros. Não precisa mexer no código |
+| Itens da Lista de Verificação de Veículo | `js/veiculos.js` (`VE_ITENS`) e `api/veiculos.js` (`ITENS`, a quantidade) |
+| Situação documental dos veículos | `js/veiculos.js` (`VE_SIT`) e `api/veiculos.js` (`SITUACOES_DOC`) |
 
 Sempre que uma lista existir no navegador e no servidor, as duas precisam ser alteradas juntas. Se mudar só no navegador, o servidor recusa o valor novo.
 
@@ -134,4 +141,4 @@ Algumas linhas continuam longas. São trechos de HTML com muitos valores no meio
 - Teste localmente antes de enviar para a Vercel. Um erro em `js/base.js` derruba todas as telas.
 - Não grave senha, chave ou endereço do banco no código. Eles ficam nas variáveis de ambiente da Vercel (`DATABASE_URL`, `SESSION_SECRET`, `APP_PASSWORD` e as do Blob).
 - Regra nova de permissão vai no servidor (pasta `api/`), e não apenas escondendo o botão na tela.
-- Alteração de tabela no banco vai em um arquivo novo na pasta `db/`, com o número seguinte (por exemplo, `migracao_006_...sql`), para manter o registro do que foi feito.
+- Alteração de tabela no banco vai em um arquivo novo na pasta `db/`, com o número seguinte (por exemplo, `migracao_008_...sql`), para manter o registro do que foi feito.

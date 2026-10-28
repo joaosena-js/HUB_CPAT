@@ -7,7 +7,16 @@ const RG = {
     tri: Math.floor((+TS().slice(5, 7) - 1) / 3) + 1,
     de: '',
     ate: '',
+    aba: 'ind', // ind = indicadores do período; proc = relatórios de processos (antiga aba de Listas e Relatórios)
 };
+// Abas da tela Gerenciais
+const rgAbas = () =>
+    `<div class="sg2">${[
+        ['ind', 'Indicadores do período'],
+        ['proc', 'Relatórios de processos'],
+    ]
+        .map(([k, l]) => `<button class="${RG.aba == k ? 'on' : ''}" onclick="RG.aba='${k}';draw()">${l}</button>`)
+        .join('')}</div>`;
 const RG_MODOS = [
     ['mes', 'Mês'],
     ['tri', 'Trimestre'],
@@ -267,7 +276,7 @@ function rgQuadros() {
     const go_ = grupo(rec, r => r.orgao);
     Q.push({
         k: 'orgaos',
-        t: 'Processos por interessados',
+        t: 'Interessados com mais processos recebidos',
         h: ['Interessado', 'Recebidos', 'Concluídos no período', 'Em aguardo no fim'],
         r: Object.entries(go_)
             .map(([k, l]) => [k, l.length, l.filter(r => pConcl(r, a, b)).length, l.filter(r => pAberto(r, b)).length])
@@ -411,6 +420,8 @@ function rgTab(q, lim = q.lim) {
 
 // Tela Gerenciais
 function rgScr() {
+    if (RG.aba == 'proc')
+        return head('Gerenciais', 'Relatórios de processos por responsável, situação e período') + rgAbas() + relProc();
     const { P, Q, res, tm } = rgQuadros(),
         sel = (v, ops, on) =>
             `<select onchange="${on}">${ops.map(([k, l]) => `<option value="${k}" ${v == k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
@@ -453,6 +464,7 @@ function rgScr() {
             'Indicadores do período para apresentação à gestão',
             `<button class="btn" onclick="rgPers()">${ic('list', 16)} Personalizar relatório</button> <button class="btn" onclick="rgXls()">${ic('xls', 16)} Excel</button> <button class="btn p" onclick="rgPdf()">${ic('pdf', 16)} Gerar PDF</button>`
         ) +
+        rgAbas() +
         `<div class="cd" style="margin-bottom:18px">
             <div class="tb" style="margin:0"><span class="sg2" style="margin:0">${RG_MODOS.map(([k, l]) => `<button class="${RG.modo == k ? 'on' : ''}" onclick="RG.modo='${k}';draw()">${l}</button>`).join('')}</span>${ctl}<span class="sp"></span><span class="nt">Período: <b>${esc(P.nome)}</b></span></div>
             ${nf ? `<p class="nt" style="margin:10px 0 0">Relatório personalizado: ${nf} item(ns) fora do PDF e do Excel. <a href="#" onclick="event.preventDefault();rgPers()">Alterar</a></p>` : ''}

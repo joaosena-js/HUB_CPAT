@@ -26,22 +26,6 @@ const VD = {
         base: () => true,
         c: [...CTC, ['Ações', () => '', act]],
     },
-    caixa: {
-        t: 'Caixa do Setor',
-        s: 'Processos recebidos e em posse do setor',
-        base: r => r.tipo == 'Caixa do setor' && !done(r),
-        row: r => (r.crit == 'c' ? 'r' : venc(r) ? 'w' : ''),
-        c: [
-            ['Nº Processo', r => r.numero],
-            ['Assunto', r => r.assunto],
-            ['Interessado', r => r.orgao],
-            ['Recebedor', r => r.recebedor],
-            ['Data de Entrada', r => fmt(r.tram)],
-            ['Tempo em Espera', r => (r.age == null ? '' : r.age + ' dias'), r => `<b>${r.age ?? '—'}</b> dias`],
-            ['Situação', r => r.status + ' · ' + CL[r.crit], r => stc(r) + ' ' + cb(r) + ' ' + venc(r)],
-            ['Ações', () => '', act],
-        ],
-    },
     alien: {
         t: 'Alienações',
         s: 'Baixa e desfazimento de bens',
@@ -96,8 +80,8 @@ const VD = {
         ],
     },
     vida: {
-        t: 'Vida do Processo',
-        s: 'Dias que cada processo está no setor, do mais antigo ao mais novo',
+        t: 'Idade de Saldo',
+        s: 'Dias que cada processo em aberto está no setor, do mais antigo ao mais novo',
         base: r => !done(r),
         card: 1,
         c: CT,
@@ -223,7 +207,7 @@ function dash() {
             <p style="margin:12px 0 0"><button class="btn s" onclick="go('vida')">Ver fila completa ${ic('cr', 14)}</button></p></aside></div>`
     );
 }
-// Monta uma tela de lista de processos (Todos, Caixa do Setor, Alienações etc.)
+// Monta uma tela de lista de processos (Todos, Alienações, Transferências, Idade de Saldo)
 function screen(k) {
     const s = gs(k),
         V = VD[k],
@@ -232,9 +216,7 @@ function screen(k) {
         head(
             V.t,
             V.s,
-            k == 'todos' || k == 'caixa'
-                ? `<button class="btn p" onclick="edit(0)">${ic('plus', 16)} Novo processo</button>`
-                : ''
+            k == 'todos' ? `<button class="btn p" onclick="edit(0)">${ic('plus', 16)} Novo processo</button>` : ''
         ) +
         (kp ? `<div class="kp">${kp.map(x => kc(x[2], x[3], x[0], x[1], x[4])).join('')}</div>` : '') +
         `<div class="cd">
@@ -494,20 +476,18 @@ function rg() {
         }[RS.t]
     );
 }
-// Tela Listas e Relatórios: abas Relatórios e Cadastros
-function relscr() {
-    return (
-        head('Listas e Relatórios', 'Relatórios e cadastros do sistema') +
-        `<div class="sg2"><button class="${sub == 'rel' ? 'on' : ''}" onclick="sub='rel';draw()">Relatórios</button><button class="${sub == 'cad' ? 'on' : ''}" onclick="sub='cad';draw()">Cadastros e parâmetros</button></div>` +
-        (sub == 'cad'
-            ? listas()
-            : `<div class="rp">${RP.map(([k, n]) => `<button class="${RS.t == k ? 'on' : ''}" onclick="RS.t='${k}';draw()">${ic(k == 'resp' ? 'user' : 'chart', 16)} ${n}</button>`).join('')}</div>
+// Tela Listas e Parâmetros (Administração): prazos de criticidade e listas de cadastro
+function parScr() {
+    return head('Listas e Parâmetros', 'Prazos de criticidade e listas usadas nos cadastros do sistema') + listas();
+}
+// Aba Relatórios de processos da tela Gerenciais: relatórios por responsável, situação e período
+function relProc() {
+    return `<div class="rp">${RP.map(([k, n]) => `<button class="${RS.t == k ? 'on' : ''}" onclick="RS.t='${k}';draw()">${ic(k == 'resp' ? 'user' : 'chart', 16)} ${n}</button>`).join('')}</div>
 <div class="cd">
     <div class="tb"><label class="nt">${RS.t == 'conc' ? 'Conclusão' : 'Entrada'} de <input type="date" value="${RS.a}" onchange="if(anoOk(this.value)){RS.a=this.value;rl()}"></label><label class="nt">até <input type="date" value="${RS.b}" onchange="if(anoOk(this.value)){RS.b=this.value;rl()}"></label><label class="nt">Responsável <select onchange="RS.r=this.value;rl()"><option value="">Todos</option>${L.resp.map(x => `<option ${RS.r == x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label><span class="sp"></span><button class="btn" onclick="rx('x')">${ic('xls', 16)} Excel</button><button class="btn" onclick="rx('p')">${ic('pdf', 16)} PDF</button></div>
     <div id="rr">
     </div>
-    </div>`)
-    );
+    </div>`;
 }
 // Redesenha só a tabela do relatório escolhido
 function rl() {
@@ -553,6 +533,8 @@ const LN = [
     ['motivos', 'Motivos da baixa (alienação)'],
     ['assuntos', 'Assuntos (caixa do setor)'],
     ['assuntos_at', 'Assuntos (atendimentos)'],
+    ['tipos_veiculo', 'Tipos de veículo (sugestões)'],
+    ['destinacoes', 'Destinações de veículos (sugestões)'],
 ];
 // Aba Cadastros: prazos de criticidade e listas (status, responsáveis, órgãos, motivos e assuntos)
 function listas() {
@@ -624,6 +606,8 @@ function saveL() {
             motivos: r => r.tipo == 'Alienação' && r.detalhe == o && (r.detalhe = n),
             assuntos: r => r.tipo == 'Caixa do setor' && r.detalhe == o && (r.detalhe = n),
             assuntos_at: () => 0,
+            tipos_veiculo: () => 0,
+            destinacoes: () => 0,
         },
         ch = [];
     D.forEach(r => {
@@ -750,7 +734,11 @@ function form() {
               : f('orgao', 'Interessado', 'text', '', 'dl_o') + f('detalhe', 'Assunto / marcador', 'text', '', 'dl_a');
     $('#fm').innerHTML =
         f('numero', 'Nº do processo', 'text', 'w') +
-        `<label class="w">Descrição<textarea id="f_descricao" rows="2" maxlength="4000" placeholder="Resumo do que trata o processo">${esc(cur.descricao)}</textarea></label><label>Tipo<select id="f_tipo" onchange="rt()">${TIPOS.map(x => `<option ${T == x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>` +
+        `<label class="w">Descrição<textarea id="f_descricao" rows="2" maxlength="4000" placeholder="Resumo do que trata o processo">${esc(cur.descricao)}</textarea></label><label>Tipo<select id="f_tipo" onchange="rt()">${TIPOS.filter(
+            x => x != CAIXA || T == CAIXA
+        )
+            .map(x => `<option ${T == x ? 'selected' : ''}>${x}</option>`)
+            .join('')}</select></label>` +
         f('tram', 'Data de Tramitação', 'date') +
         ex +
         f('doc', 'Nº do documento') +
@@ -915,7 +903,7 @@ function openImp() {
     IMP = null;
     $('#dd').innerHTML =
         `<h2><span>Importar dados</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2>
-            <div class="fm"><label>Parte a importar<select id="ip" onchange="impPrev()"><option value="">Todos os tipos (conforme o arquivo)</option>${TIPOS.map(t => `<option>${t}</option>`).join('')}</select></label><label>Modo<select id="im" onchange="impPrev()"><option value="u">Adicionar e atualizar (não apaga nada)</option><option value="r">Substituir somente essa parte</option><option value="f">Substituir TUDO (restaurar backup)</option></select></label><label class="w">Arquivo (.xlsx ou backup .json)<input type="file" id="if" accept=".xlsx,.xlsm,.xls,.json" onchange="impRead()"></label><div class="w ib" id="ipv">Escolha o arquivo para ver a prévia antes de importar. Só a parte escolhida é alterada; as demais não são tocadas.</div>
+            <div class="fm"><label>Parte a importar<select id="ip" onchange="impPrev()"><option value="">Todos os tipos (conforme o arquivo)</option>${TIPOS_ATIVOS.map(t => `<option>${t}</option>`).join('')}</select></label><label>Modo<select id="im" onchange="impPrev()"><option value="u">Adicionar e atualizar (não apaga nada)</option><option value="r">Substituir somente essa parte</option><option value="f">Substituir TUDO (restaurar backup)</option></select></label><label class="w">Arquivo (.xlsx ou backup .json)<input type="file" id="if" accept=".xlsx,.xlsm,.xls,.json" onchange="impRead()"></label><div class="w ib" id="ipv">Escolha o arquivo para ver a prévia antes de importar. Só a parte escolhida é alterada; as demais não são tocadas.</div>
             </div>
             <div class="ac"><button class="btn p" id="ig" disabled onclick="impGo()">${ic('up', 15)} Importar</button><button class="btn" onclick="$('#dd').close()">Cancelar</button></div>`;
     $('#dd').showModal();
@@ -966,13 +954,19 @@ function impPrev() {
     const m = $('#im').value,
         p = m == 'f' ? '' : $('#ip').value,
         all = rowsOf(p);
-    let skip = 0;
+    let skip = 0,
+        cx = 0;
     const rs = [];
     all.forEach(r => {
         if (!String(r.numero || '').trim()) return;
         const t = r.tipo ? TIPOS.find(x => nh(x).startsWith(nh(r.tipo).slice(0, 6))) : p;
         if (!t || (p && t != p)) {
             skip++;
+            return;
+        }
+        // Caixa do Setor desativada: só entra na restauração completa de um backup
+        if (t == CAIXA && m != 'f') {
+            cx++;
             return;
         }
         rs.push({ ...r, numero: String(r.numero).trim(), tipo: t });
@@ -993,7 +987,8 @@ function impPrev() {
               ? `Serão removidos ${del} processo(s) existente(s) de ${ts.join(', ') || '—'}, junto com o histórico deles, e inseridos ${rs.length}.`
               : `<b>Atenção:</b> apaga os ${del} processos atuais de todos os tipos, junto com todo o histórico registrado, e coloca ${rs.length}${IMP.ls ? ' (e restaura as listas do backup)' : ''}.`) +
         (m != 'f' ? '<br>As demais partes não serão alteradas.' : '') +
-        (skip ? `<br>${skip} linha(s) ignorada(s) (sem nº ou de outro tipo).` : '');
+        (skip ? `<br>${skip} linha(s) ignorada(s) (sem nº ou de outro tipo).` : '') +
+        (cx ? `<br>${cx} linha(s) da Caixa do Setor ignorada(s): essa parte foi desativada.` : '');
     $('#ig').disabled = !rs.length;
 }
 // Importação: grava as linhas no servidor

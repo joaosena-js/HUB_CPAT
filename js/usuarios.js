@@ -34,22 +34,22 @@ function usuLoad() {
         const [a, b] = await Promise.all([api({ op: 'usuarios' }), api({ op: 'log', ...LF })]);
         US = a.usuarios;
         LGA = b.log;
-        if (tab == 'usu') draw();
+        if (tab == 'usu' || tab == 'log') draw();
     });
 }
 // Carrega o log de atividades com os filtros escolhidos
 function logLoad() {
     run(async () => {
         LGA = (await api({ op: 'log', ...LF })).log;
-        if (tab == 'usu') draw();
+        if (tab == 'usu' || tab == 'log') draw();
     });
 }
-// Tela Usuários e log de atividades
+// Tela Usuários
 function usuScr() {
     return (
         head(
-            'Usuários e Log',
-            'Acesso individual dos servidores e registro das atividades no sistema',
+            'Usuários',
+            'Acesso individual dos servidores ao sistema',
             `<button class="btn p" onclick="usuEd(0)">${ic('plus', 16)} Novo usuário</button>`
         ) +
         `<div class="cd" style="margin-bottom:18px">
@@ -79,8 +79,14 @@ function usuScr() {
             ).join('')}</tbody>
             </table>
             </div>
-            </div>
-<div class="cd">
+            </div>`
+    );
+}
+// Tela Log de atividades
+function logScr() {
+    return (
+        head('Log de atividades', 'Registro de quem fez o quê no sistema, com data, hora e IP') +
+        `<div class="cd">
     <h3>${ic('history', 18)} Log de atividades</h3>
     <div class="tb"><label class="nt">Usuário <select onchange="LF.u=this.value;logLoad()"><option value="">Todos</option>${US.map(u => `<option value="${u.id}" ${LF.u == u.id ? 'selected' : ''}>${esc(u.nome)}</option>`).join('')}</select></label><label class="nt">De <input type="date" value="${LF.de}" onchange="if(anoOk(this.value)){LF.de=this.value;logLoad()}"></label><label class="nt">Até <input type="date" value="${LF.ate}" onchange="if(anoOk(this.value)){LF.ate=this.value;logLoad()}"></label><span class="sp"></span><button class="btn" onclick="xp('Log de atividades',LH,LGA.map(lr),'x')">${ic('xls', 16)} Excel</button></div>
     <p class="nt">${LGA.length} registro(s)${LGA.length >= 1000 ? ' (exibindo os 1000 mais recentes; use o filtro de datas)' : ''}</p>
