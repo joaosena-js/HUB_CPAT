@@ -136,10 +136,11 @@ function dash() {
             ['até ' + cfg().critico + ' dias', 'a', '#d97706'],
             ['acima de ' + cfg().critico + ' dias', 'c', '#dc2626'],
         ],
-        tp = ['#1d4ed8', '#16a34a', '#d97706'];
+        tp = ['#1d4ed8', '#16a34a', '#7c3aed', '#d97706'];
     // Em análise / Em tramitação seguem a mesma regra das telas de Alienações e Transferências, para os números baterem
     const A = v.filter(r => r.tipo == 'Alienação'),
         T = v.filter(r => r.tipo == 'Transferência'),
+        V = v.filter(r => r.tipo == VEICULO),
         grp = (t, i, x, k, an, tr) =>
             `<h3 class="kt">${ic(i, 18)} ${t}</h3><div class="kp">${kc(
                 i,
@@ -168,6 +169,23 @@ function dash() {
         )}${kc('clock', 'y', 'Processos em aguardo', ab.length, { c: '', t: 'todos os não concluídos' }, "go('vida')")}</div>` +
         grp('Processos de Alienação', 'archive', A, 'alien', r => !done(r) && !apr(r), apr) +
         grp('Processos de Transferência', 'swap', T, 'transf', pend, r => !done(r) && !pend(r)) +
+        (V.length
+            ? `<h3 class="kt">${ic('car', 18)} Processos de Veículo</h3><div class="kp">${kc(
+                  'car',
+                  'v',
+                  'Total',
+                  V.length,
+                  dv(V, r => r.tram),
+                  "go('vproc')"
+              )}${kc(
+                  'ok',
+                  'g',
+                  'Concluídos',
+                  V.filter(done).length,
+                  dv(V.filter(done), r => r.concl),
+                  "go('vproc')"
+              )}${kc('clock', 'y', 'Em aguardo', V.filter(r => !done(r)).length, null, "go('vproc')")}</div>`
+            : '') +
         `
 <div class="dg">
     <div>
@@ -340,13 +358,16 @@ function ex(k, kind) {
 function det(id) {
     const r = view().find(x => x.id == id);
     if (!r) return;
-    const f = (l, v) => `<div>${l}<b>${esc(v) || '—'}</b></div>`;
+    const f = (l, v) => `<div>${l}<b>${esc(v) || '—'}</b></div>`,
+        V = r.tipo == VEICULO,
+        doc = V ? 'Ofício' : 'Documento',
+        ves = typeof VE != 'undefined' ? VE.filter(v => v.processo_id == r.id) : [];
     $('#dd').innerHTML =
-        `<h2><span>Processo ${esc(r.numero)}</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2>${r.descricao ? `<div class="ds" style="margin-top:14px">Descrição<b>${esc(r.descricao)}</b></div>` : ''}<div class="dl">${f('Tipo', r.tipo)}${f('Status', r.status)}${f('Interessado', r.orgao)}${f('Recebedor / Destino', r.destino)}${f('Assunto', r.assunto)}${f('Responsável', r.resp)}${f('Documento', r.doc)}${f('Qtde. de Bens', r.itens)}${f('Setor atual', r.setor)}<div>Prioridade<b>${cb(r)}</b></div>
+        `<h2><span>Processo ${esc(r.numero)}</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2>${r.descricao ? `<div class="ds" style="margin-top:14px">Descrição<b>${esc(r.descricao)}</b></div>` : ''}<div class="dl">${f('Tipo', r.tipo)}${f('Status', r.status)}${f(V ? 'Órgão' : 'Interessado', r.orgao)}${V ? '' : f('Recebedor / Destino', r.destino)}${f('Assunto', r.assunto)}${f('Responsável', r.resp)}${f(doc, r.doc)}${V ? '' : f('Qtde. de Bens', r.itens) + f('Setor atual', r.setor)}<div>Prioridade<b>${cb(r)}</b></div>
             </div>${r.obs ? `<div class="ds">Observação<b>${esc(r.obs)}</b></div>` : ''}
-<div class="tl">${r.datadoc ? `<div><b>Documento emitido</b><small>${fmt(r.datadoc)} · ${esc(r.doc)}</small></div>` : ''}<div><b>Entrada no setor</b><small>${fmt(r.tram)}</small></div>${r.mov && r.mov != r.tram && r.mov != r.concl ? `<div><b>Última movimentação</b><small>${fmt(r.mov)}</small></div>` : ''}<div><b>${done(r) ? 'Concluído' : 'Em andamento'}</b><small>${done(r) ? fmt(r.concl) + ' · ' + r.age + ' dias no setor' : (r.age ?? '?') + ' dias aguardando'}</small></div>
+<div class="tl">${r.datadoc ? `<div><b>${doc} emitido</b><small>${fmt(r.datadoc)} · ${esc(r.doc)}</small></div>` : ''}<div><b>Entrada no setor</b><small>${fmt(r.tram)}</small></div>${r.mov && r.mov != r.tram && r.mov != r.concl ? `<div><b>Última movimentação</b><small>${fmt(r.mov)}</small></div>` : ''}<div><b>${done(r) ? 'Concluído' : 'Em andamento'}</b><small>${done(r) ? fmt(r.concl) + ' · ' + r.age + ' dias no setor' : (r.age ?? '?') + ' dias aguardando'}</small></div>
     </div>
-<div id="hpa">
+${ves.length ? `<h3 class="kt" style="margin:0 20px 8px">${ic('car', 16)} Veículos vinculados (${ves.length})</h3><div class="tl">${ves.map(v => `<div><b><a href="#" onclick="event.preventDefault();veDet(${v.id})">${esc(veNome(v))}</a></b><small>${esc(v.orgao || '—')} · ${v.saida ? 'saiu do depósito em ' + fmt(v.saida) : 'no depósito'}</small></div>`).join('')}</div>` : ''}<div id="hpa">
     </div>
     <h3 class="kt" style="margin:0 20px 8px">${ic('history', 16)} Histórico do processo</h3><form class="tb" style="margin:0 20px 10px" onsubmit="event.preventDefault();hAdd(${r.id})"><input type="date" id="hd" value="${TS()}" max="${TS()}" aria-label="Data"><input id="hx" maxlength="2000" placeholder="O que aconteceu? Ex.: Anexado ofício de resposta do órgão" style="flex:1;min-width:200px" aria-label="Descrição"><button class="btn p s">${ic('plus', 14)} Registrar</button></form><div class="tl" id="hl">
     <p class="nt">Carregando histórico…</p>
@@ -669,8 +690,8 @@ const KS = [
     'obs',
     'bem',
 ];
-// Abre o formulário de processo (id 0 = novo processo)
-function edit(id) {
+// Abre o formulário de processo (id 0 = novo processo; tipo = tipo já escolhido para o processo novo)
+function edit(id, tipo) {
     cur = id
         ? { ...D.find(r => r.id == id) }
         : {
@@ -678,7 +699,7 @@ function edit(id) {
               numero: '',
               descricao: '',
               setor: '',
-              tipo: TIPOS[0],
+              tipo: tipo || TIPOS[0],
               tram: TS(),
               orgao: '',
               recebedor: '',
@@ -731,7 +752,12 @@ function form() {
               ? f('orgao', 'Órgão', 'text', '', 'dl_o') +
                 s('detalhe', 'Motivo da baixa', L.motivos) +
                 f('itens', 'Quantidade de itens', 'number')
-              : f('orgao', 'Interessado', 'text', '', 'dl_o') + f('detalhe', 'Assunto / marcador', 'text', '', 'dl_a');
+              : T == VEICULO
+                ? f('orgao', 'Órgão', 'text', '', 'dl_o')
+                : f('orgao', 'Interessado', 'text', '', 'dl_o') +
+                  f('detalhe', 'Assunto / marcador', 'text', '', 'dl_a');
+    // Processo de Veículo: Nº do ofício (opcional) e data do ofício no lugar do documento, sem setor atual
+    const V = T == VEICULO;
     $('#fm').innerHTML =
         f('numero', 'Nº do processo', 'text', 'w') +
         `<label class="w">Descrição<textarea id="f_descricao" rows="2" maxlength="4000" placeholder="Resumo do que trata o processo">${esc(cur.descricao)}</textarea></label><label>Tipo<select id="f_tipo" onchange="rt()">${TIPOS.filter(
@@ -741,11 +767,11 @@ function form() {
             .join('')}</select></label>` +
         f('tram', 'Data de Tramitação', 'date') +
         ex +
-        f('doc', 'Nº do documento') +
-        f('datadoc', 'Data do documento', 'date') +
+        f('doc', V ? 'Nº do ofício (opcional)' : 'Nº do documento') +
+        f('datadoc', V ? 'Data do ofício' : 'Data do documento', 'date') +
         s('status', 'Status', L.status) +
         s('resp', 'Responsável', L.resp) +
-        f('setor', 'Setor atual (vazio = DBM)', 'text', '', 'dl_o') +
+        (V ? '' : f('setor', 'Setor atual (vazio = DBM)', 'text', '', 'dl_o')) +
         f('concl', 'Data de conclusão', 'date') +
         `<label class="w">Observação<textarea id="f_obs" rows="2" maxlength="4000">${esc(cur.obs)}</textarea></label>` +
         dl('dl_o', L.orgaos) +
@@ -770,7 +796,8 @@ function sv() {
     if (!r.numero || !r.tram) return alert('Informe o nº do processo e a data de entrada.');
     r.itens = r.itens === '' ? '' : +r.itens;
     if (r.tipo != 'Transferência') r.recebedor = '';
-    if (r.tipo == 'Caixa do setor') r.itens = '';
+    if (r.tipo == CAIXA || r.tipo == VEICULO) r.itens = '';
+    if (r.tipo == VEICULO) r.detalhe = '';
     r.status = r.status || L.status[0] || '';
     const o = D.find(x => x.id == r.id);
     if (done(r) && !r.concl) r.concl = TS();

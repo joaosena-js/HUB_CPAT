@@ -115,6 +115,7 @@ Os prefixos ajudam a saber de qual módulo é cada função: `at` é de atendime
 | Quero mudar | Onde |
 |---|---|
 | Cores, tamanhos, espaçamentos | `index.html`, no bloco `<style>`. As cores ficam em variáveis como `--pr` no início do bloco |
+| Tipos de processo (Transferência, Alienação, Veículo) | `js/base.js` (`TIPOS`) e `api/data.js` (`TIPOS`). Os campos de cada tipo ficam em `js/processos.js`, função `form` |
 | Itens do menu lateral | `js/base.js`, lista `NAV` (e `TELAS`, quando for uma tela nova) |
 | Colunas da tabela de processos | `js/processos.js`, lista `CT` |
 | Colunas da tabela de atendimentos | `js/atendimentos.js`, lista `AT_C` (tela) e `AT_X` (exportação) |

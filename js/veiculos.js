@@ -75,7 +75,7 @@ let VE = [],
     VEP = null,
     VE_FOTOS_OK = false;
 const VES = { q: '', f: {}, page: 1, size: 25, open: false },
-    VPS = { q: '' };
+    VPS = { q: '', t: '' };
 
 // Lista de Verificação preenchida: tem data ou pelo menos um item marcado
 const veVistOk = v => !!(v.vistoria && (v.vistoria.data || (v.vistoria.itens || []).some(Boolean)));
@@ -961,17 +961,20 @@ function veImpGo() {
     });
 }
 
-// Tela Processos (Gestão de Veículos): processos informados nos veículos, com a quantidade de cada um.
+// Tela Processos (Gestão de Veículos): processos do tipo Veículo e processos informados no cadastro dos veículos
+// (Transferência, Alienação ou ainda não cadastrados no Hub), com os veículos de cada um.
 // Processo ainda não cadastrado no Hub aparece pelo número, agrupado sem pontuação.
 const vpGrupos = () => {
-    const g = {};
+    const g = {},
+        vw = view();
+    D.filter(r => r.tipo == VEICULO).forEach(r => (g[r.id] = []));
     VE.filter(v => v.processo_numero).forEach(v => {
         const k = v.processo_id || 'n' + nh(v.processo_numero);
         (g[k] = g[k] || []).push(v);
     });
-    return Object.values(g).map(l => {
-        const pid = l[0].processo_id,
-            r = (pid && D.find(x => x.id == pid)) || {
+    return Object.entries(g).map(([k, l]) => {
+        const pid = k[0] == 'n' ? null : +k,
+            r = (pid && vw.find(x => x.id == pid)) || {
                 numero: l[0].processo_numero,
                 tipo: l[0].processo_tipo || '',
                 orgao: [...new Set(l.map(v => v.orgao).filter(Boolean))].join(', '),
@@ -987,27 +990,39 @@ function veProcura(q) {
     VES.page = 1;
     go('veic');
 }
+// Tipos mostrados no filtro da tela Processos (Gestão de Veículos)
+const VP_TIPOS = ['Veículo', 'Transferência', 'Alienação', 'Não cadastrado no Hub'];
+const vpTipo = x => (x.pid ? x.r.tipo : 'Não cadastrado no Hub');
 function vpScr() {
     const g = vpGrupos(),
+        pv = g.filter(x => x.r.tipo == VEICULO),
         sem = VE.filter(v => !v.processo_numero).length,
         nc = g.filter(x => !x.pid).length;
     return (
-        head('Processos com veículos', 'Processos informados no cadastro dos veículos') +
-        `<div class="kp">${kc('files', '', 'Processos com veículos', g.length, nc ? { c: '', h: '', t: nc + ' ainda não cadastrado(s) no Hub' } : null)}${kc('car', 'v', 'Veículos vinculados', VE.length - sem)}${kc('warn', 'y', 'Veículos sem processo', sem, null, sem ? "veFiltra({temproc:'Sem processo'})" : '')}</div>` +
+        head(
+            'Processos de veículos',
+            'Processos do tipo Veículo e processos informados no cadastro dos veículos',
+            `<button class="btn p" onclick="edit(0, VEICULO)">${ic('plus', 16)} Novo processo de veículo</button>`
+        ) +
+        `<div class="kp">${kc('car', 'v', 'Processos do tipo Veículo', pv.length, { c: '', h: '', t: pv.filter(x => !done(x.r)).length + ' em aguardo' })}${kc('files', '', 'Processos com veículos vinculados', g.filter(x => x.l.length).length, nc ? { c: '', h: '', t: nc + ' ainda não cadastrado(s) no Hub' } : null)}${kc('ok', 'g', 'Veículos com processo', VE.length - sem)}${kc('warn', 'y', 'Veículos sem processo', sem, null, sem ? "veFiltra({temproc:'Sem processo'})" : '')}</div>` +
         `<div class="cd">
             <div class="tb">
-            <div class="sr">${ic('search')}<input value="${esc(VPS.q)}" placeholder="Pesquisar por nº do processo, órgão, placa, modelo…" oninput="VPS.q=this.value;vpList()"></div><button class="btn" onclick="vpEx('x')">${ic('xls', 16)} Excel</button><button class="btn" onclick="vpEx('p')">${ic('pdf', 16)} PDF</button></div>
+            <div class="sr">${ic('search')}<input value="${esc(VPS.q)}" placeholder="Pesquisar por nº do processo, órgão, responsável, placa, modelo…" oninput="VPS.q=this.value;vpList()"></div><select aria-label="Tipo de processo" onchange="VPS.t=this.value;vpList()"><option value="">Todos os tipos</option>${VP_TIPOS.map(t => `<option ${VPS.t == t ? 'selected' : ''}>${t}</option>`).join('')}</select><button class="btn" onclick="vpEx('x')">${ic('xls', 16)} Excel</button><button class="btn" onclick="vpEx('p')">${ic('pdf', 16)} PDF</button></div>
             <div id="res">
             </div>
             </div>`
     );
 }
-// Colunas da tela Processos com veículos
+// Colunas da tela Processos de veículos (a última, Veículos vinculados, vira links na tela)
 const VP_C = [
     ['Nº do processo', x => x.r.numero],
     ['Tipo', x => x.r.tipo || ''],
     ['Órgão', x => x.r.orgao || ''],
+    ['Data de Tramitação', x => (x.r.tram ? fmt(x.r.tram) : '')],
+    ['Nº do ofício', x => (x.r.tipo == VEICULO ? x.r.doc || '' : '')],
     ['Status', x => x.r.status || ''],
+    ['Responsável', x => x.r.resp || ''],
+    ['Conclusão', x => (x.r.concl ? fmt(x.r.concl) : '')],
     ['Veículos', x => x.l.length],
     ['No depósito', x => x.dep],
     ['Veículos vinculados', x => x.l.map(veNome).join('; ')],
@@ -1015,35 +1030,52 @@ const VP_C = [
 const vpRows = () => {
     const q = nz(VPS.q);
     return vpGrupos()
-        .filter(x => !q || nz([x.r.numero, x.r.tipo, x.r.orgao, x.r.status, ...x.l.map(veNome)].join(' ')).includes(q))
-        .sort((a, b) => b.l.length - a.l.length || String(a.r.numero).localeCompare(String(b.r.numero)));
+        .filter(x => !VPS.t || vpTipo(x) == VPS.t)
+        .filter(
+            x =>
+                !q ||
+                nz(
+                    [
+                        x.r.numero,
+                        x.r.tipo,
+                        x.r.orgao,
+                        x.r.status,
+                        x.r.resp,
+                        x.r.doc,
+                        x.r.descricao,
+                        ...x.l.map(veNome),
+                    ].join(' ')
+                ).includes(q)
+        )
+        .sort((a, b) => b.l.length - a.l.length || String(b.r.tram || '').localeCompare(String(a.r.tram || '')));
 };
-// Redesenha só a tabela da tela Processos com veículos
+// Redesenha só a tabela da tela Processos de veículos
 function vpList() {
     const el = $('#res');
     if (!el) return;
-    const r = vpRows();
+    const r = vpRows(),
+        n = VP_C.length - 1;
     el.innerHTML = r.length
         ? `<div class="tw"><table><thead><tr>${VP_C.map(c => `<th${tal(c[0])}>${c[0]}</th>`).join('')}</tr></thead><tbody>${r
               .map(
                   x =>
                       `<tr onclick="${x.pid ? `det(${x.pid})` : esc(`veProcura(${JSON.stringify(x.r.numero)})`)}">${VP_C.slice(
                           0,
-                          6
+                          n
                       )
                           .map(c => `<td${tal(c[0])}>${esc(c[1](x)) || '—'}</td>`)
                           .join(
                               ''
-                          )}<td class="tl">${x.l.map(v => `<a href="#" onclick="event.preventDefault();event.stopPropagation();veDet(${v.id})">${esc(veNome(v))}</a>`).join('<br>')}</td></tr>`
+                          )}<td class="tl">${x.l.map(v => `<a href="#" onclick="event.preventDefault();event.stopPropagation();veDet(${v.id})">${esc(veNome(v))}</a>`).join('<br>') || '—'}</td></tr>`
               )
               .join('')}</tbody></table></div>`
-        : `<p class="nt" style="text-align:center;padding:24px">${VE.some(v => v.processo_numero) ? 'Nenhum processo encontrado com essa pesquisa.' : 'Nenhum veículo com processo informado ainda. O processo é informado no cadastro do veículo.'}</p>`;
+        : `<p class="nt" style="text-align:center;padding:24px">${vpGrupos().length ? 'Nenhum processo encontrado com essa pesquisa e esse tipo.' : 'Nenhum processo de veículo ainda. Use o botão Novo processo de veículo, ou informe o processo no cadastro do veículo.'}</p>`;
 }
 const vpEx = k =>
     xp(
-        'Processos com veículos',
+        'Processos de veículos',
         VP_C.map(c => c[0]),
         vpRows().map(x => VP_C.map(c => c[1](x))),
         k,
-        VPS.q ? 'com a pesquisa aplicada na tela' : ''
+        VPS.q || VPS.t ? 'com a pesquisa e o filtro aplicados na tela' : ''
     );

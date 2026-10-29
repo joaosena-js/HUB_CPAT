@@ -27,6 +27,7 @@ const IC = {
     tu: '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
     td: '<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/>',
     eye: '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+    eyeoff: '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="m2 2 20 20"/>',
     db: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
     trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
     pen: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>',
@@ -40,7 +41,7 @@ const IC = {
     gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
 };
 // Versão do sistema, exibida abaixo do nome no menu lateral
-const VERSAO = '7.1';
+const VERSAO = '7.2';
 IC.pie = '<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>';
 IC.chat = '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
 IC.home =
@@ -51,9 +52,11 @@ IC.clip =
 // Desenha um ícone pelo nome (lista IC acima)
 const ic = (n, s = 18) =>
     `<svg class="i" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IC[n]}</svg>`;
+// Tipos de processo. Veículo (v7.2) aparece em Gestão de Veículos > Processos.
 // Caixa do setor: desativada na v7.0. Os processos antigos continuam no banco para recategorizar, mas não entram novos.
 const CAIXA = 'Caixa do setor',
-    TIPOS = ['Transferência', 'Alienação', CAIXA],
+    VEICULO = 'Veículo',
+    TIPOS = ['Transferência', 'Alienação', VEICULO, CAIXA],
     TIPOS_ATIVOS = TIPOS.filter(t => t != CAIXA),
     MS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 // Dados carregados do servidor: D = processos, L = listas de cadastro, LAST = assinatura da última carga
@@ -87,7 +90,24 @@ function auth(setup) {
             $('#lgs').hidden = !setup;
             d.querySelectorAll('[data-s]').forEach(e => (e.hidden = !setup));
             $('#lgt').textContent = setup ? 'Configuração inicial' : 'Acesso ao sistema';
+            $('#lgd').textContent = setup ? 'Cadastre o primeiro administrador.' : 'Entre com seu login e senha.';
+            $('#lgi').innerHTML = ic('bank', 24);
+            $('#lgver').textContent = 'Versão ' + VERSAO;
             $('#lge').textContent = '';
+            // Botão de mostrar ou esconder a senha e aviso de Caps Lock ligado
+            const olho = $('#lgv'),
+                mostra = v => {
+                    $('#lgp').type = v ? 'text' : 'password';
+                    olho.innerHTML = ic(v ? 'eyeoff' : 'eye', 18);
+                    olho.title = v ? 'Esconder senha' : 'Mostrar senha';
+                    olho.setAttribute('aria-label', olho.title);
+                    olho.setAttribute('aria-pressed', v);
+                };
+            mostra(false);
+            olho.onclick = () => mostra($('#lgp').type == 'password');
+            $('#lgp').onkeyup = $('#lgp').onkeydown = e => {
+                if (e.getModifierState) $('#lgcl').hidden = !e.getModifierState('CapsLock');
+            };
             $('#lgp').value = '';
             $('#lgp').autocomplete = setup ? 'new-password' : 'current-password';
             $('#lgf').onsubmit = async e => {
@@ -109,6 +129,7 @@ function auth(setup) {
                     return;
                 }
                 $('#lgk').value = $('#lgp').value = '';
+                mostra(false);
                 d.close();
                 AUTH = null;
                 ok();

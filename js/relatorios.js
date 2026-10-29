@@ -211,7 +211,7 @@ function rgQuadros() {
                     c.length,
                     abt.filter(r => r.tipo == t).length,
                     media(c.filter(r => r.tram).map(r => dDias(r.tram, r.concl))),
-                    t == 'Caixa do setor' ? '—' : c.reduce((s, r) => s + (+r.itens || 0), 0),
+                    t == CAIXA || t == VEICULO ? '—' : c.reduce((s, r) => s + (+r.itens || 0), 0),
                 ];
             }),
             [
@@ -220,7 +220,7 @@ function rgQuadros() {
                 con.length,
                 abt.length,
                 media(con.filter(r => r.tram).map(r => dDias(r.tram, r.concl))),
-                con.filter(r => r.tipo != 'Caixa do setor').reduce((s, r) => s + (+r.itens || 0), 0),
+                con.filter(r => r.tipo != CAIXA && r.tipo != VEICULO).reduce((s, r) => s + (+r.itens || 0), 0),
             ],
         ],
         total: 1,
@@ -493,8 +493,8 @@ function rgPdf() {
         w = f.contentWindow;
     w.document.open();
     w.document
-        .write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório Controle de Processos ${esc(P.nome)}</title><style>body{font:10.5px Arial;color:#1e293b;margin:0}header{border-bottom:2px solid #0f2a4a;padding-bottom:8px;margin-bottom:12px}header small{color:#475569;font-size:11px;font-weight:bold}h1{font-size:17px;margin:2px 0;color:#0f2a4a}header p{margin:0;color:#475569}section{break-inside:avoid;margin-bottom:14px}h2{font-size:12.5px;margin:0 0 5px;color:#0f2a4a}table{border-collapse:collapse;width:100%}th{background:#0f2a4a;color:#fff;text-align:left;font-size:9.5px}th,td{border:1px solid #cbd5e1;padding:3px 6px}.n{text-align:right}tr:nth-child(even) td{background:#f3f5f9}tr.tot td{font-weight:bold;background:#e8eefc}.rb{display:flex;align-items:center;gap:6px;justify-content:flex-end}.rb i{display:block;height:8px;background:#1d4ed8;border-radius:2px;max-width:70%;-webkit-print-color-adjust:exact;print-color-adjust:exact}th{-webkit-print-color-adjust:exact;print-color-adjust:exact}.nt{color:#64748b;margin:3px 0 0;font-size:9.5px}footer{margin-top:16px;border-top:1px solid #cbd5e1;padding-top:6px;color:#64748b;font-size:9px}@page{size:A4;margin:14mm 12mm}</style></head><body>
-<header><small>Departamento de Bens Móveis - DBM</small><h1>Relatório Controle de Processos</h1>
+        .write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório Controle de Processos ${esc(P.nome)}</title><style>body{font:10.5px Arial;color:#1e293b;margin:0}header{border-bottom:2px solid #0f2a4a;padding-bottom:8px;margin-bottom:12px}header small{display:block;color:#475569;font-size:11px;font-weight:bold;line-height:1.45}h1{font-size:17px;margin:8px 0 2px;color:#0f2a4a}header p{margin:0;color:#475569}section{break-inside:avoid;margin-bottom:14px}h2{font-size:12.5px;margin:0 0 5px;color:#0f2a4a}table{border-collapse:collapse;width:100%}th{background:#0f2a4a;color:#fff;text-align:left;font-size:9.5px}th,td{border:1px solid #cbd5e1;padding:3px 6px}.n{text-align:right}tr:nth-child(even) td{background:#f3f5f9}tr.tot td{font-weight:bold;background:#e8eefc}.rb{display:flex;align-items:center;gap:6px;justify-content:flex-end}.rb i{display:block;height:8px;background:#1d4ed8;border-radius:2px;max-width:70%;-webkit-print-color-adjust:exact;print-color-adjust:exact}th{-webkit-print-color-adjust:exact;print-color-adjust:exact}.nt{color:#64748b;margin:3px 0 0;font-size:9.5px}footer{margin-top:16px;border-top:1px solid #cbd5e1;padding-top:6px;color:#64748b;font-size:9px}@page{size:A4;margin:14mm 12mm}</style></head><body>
+<header><small>Secretaria de Administração e Gestão - SEAD</small><small>Coordenadoria de Patrimônio - CPAT</small><small>Departamento de Bens Móveis - DBM</small><h1>Relatório Controle de Processos</h1>
     <p>Período: <b>${esc(P.nome)}</b></p></header>
 ${Q.map(q => `<section><h2>${esc(q.t)}</h2>${rgTab(q)}${q.nota ? `<p class="nt">${esc(q.nota)}</p>` : ''}</section>`).join('')}
 <footer>Emitido em ${fmt(TS())} às ${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}${ME ? ' por ' + esc(ME.nome) : ''}, a partir dos registros do Hub DBM. Números referentes à situação no último dia do período.</footer></body></html>`);

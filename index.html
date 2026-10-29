@@ -1924,6 +1924,206 @@
                 grid-template-columns: 1fr
             }
         }
+        /* Tela de login: ocupa a tela toda, com fundo em gradiente animado */
+        #lg {
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            max-width: none;
+            max-height: none;
+            margin: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            overflow: auto
+        }
+
+        #lg::backdrop {
+            background: #0b1e36;
+            backdrop-filter: none
+        }
+
+        .lgw {
+            position: relative;
+            min-height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            padding: 32px 16px;
+            overflow: hidden;
+            background: linear-gradient(125deg, #0b1e36, #12366b, #1d4ed8, #0e7490, #312e81, #0b1e36);
+            background-size: 400% 400%;
+            animation: lgfundo 22s ease infinite
+        }
+
+        @keyframes lgfundo {
+            0% {
+                background-position: 0% 50%
+            }
+
+            50% {
+                background-position: 100% 50%
+            }
+
+            100% {
+                background-position: 0% 50%
+            }
+        }
+
+        .lgo {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(60px);
+            opacity: .45;
+            pointer-events: none;
+            animation: lgflutua 18s ease-in-out infinite alternate
+        }
+
+        .lgo1 {
+            width: 420px;
+            height: 420px;
+            background: #3b82f6;
+            top: -120px;
+            left: -100px
+        }
+
+        .lgo2 {
+            width: 360px;
+            height: 360px;
+            background: #06b6d4;
+            bottom: -120px;
+            right: -80px;
+            animation-duration: 22s
+        }
+
+        .lgo3 {
+            width: 280px;
+            height: 280px;
+            background: #8b5cf6;
+            top: 40%;
+            left: 60%;
+            animation-duration: 26s
+        }
+
+        @keyframes lgflutua {
+            from {
+                transform: translate(0, 0) scale(1)
+            }
+
+            to {
+                transform: translate(60px, 40px) scale(1.15)
+            }
+        }
+
+        .lgc {
+            position: relative;
+            width: min(420px, 100%);
+            background: var(--c);
+            color: var(--tx);
+            border-radius: 18px;
+            padding: 28px 28px 24px;
+            box-shadow: 0 24px 70px rgba(2, 8, 23, .45);
+            border: 1px solid rgba(255, 255, 255, .12)
+        }
+
+        .lgm {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 22px
+        }
+
+        .lgm i {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #1d4ed8, #0e7490);
+            color: #fff;
+            display: grid;
+            place-items: center;
+            font-style: normal;
+            flex: none
+        }
+
+        .lgm b {
+            display: block;
+            font-size: 16px;
+            letter-spacing: .3px
+        }
+
+        .lgm small {
+            color: var(--mt);
+            font-size: 12px
+        }
+
+        #lg h2 {
+            position: static;
+            padding: 0;
+            border: 0;
+            background: none;
+            font-size: 21px;
+            display: block
+        }
+
+        .lgd {
+            margin: 4px 0 18px;
+            color: var(--mt);
+            font-size: 13.5px
+        }
+
+        #lg .fm {
+            padding: 0
+        }
+
+        .lgp {
+            position: relative;
+            display: block
+        }
+
+        .lgp input {
+            width: 100%;
+            padding-right: 42px
+        }
+
+        .lgp button {
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 0;
+            background: none;
+            color: var(--mt);
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 8px;
+            display: grid
+        }
+
+        .lgp button:hover {
+            color: var(--pr)
+        }
+
+        .lgb {
+            justify-content: center;
+            padding: 11px;
+            font-size: 15px;
+            margin-top: 4px
+        }
+
+        .lgr {
+            position: relative;
+            margin: 0;
+            text-align: center;
+            color: rgba(255, 255, 255, .78);
+            font-size: 12px;
+            line-height: 1.6
+        }
+
+        .lgr span {
+            opacity: .7
+        }
     </style>
 </head>
 
@@ -1952,18 +2152,29 @@
         <div class="ac" id="ac"></div>
     </dialog>
     <dialog id="dd"></dialog>
-    <dialog id="lg" oncancel="event.preventDefault()" style="width:min(400px,92vw)">
-        <h2 id="lgt">Acesso ao sistema</h2>
-        <form id="lgf" class="fm" style="grid-template-columns:1fr">
-            <div id="lgs" class="ib" style="margin:0">Primeiro acesso: cadastre o administrador do sistema. A chave de
-                instalação é o valor da variável APP_PASSWORD configurada na Vercel.</div>
-            <label data-s>Chave de instalação<input type="password" id="lgk" autocomplete="off"></label>
-            <label data-s>Nome completo<input id="lgn" autocomplete="name" maxlength="100"></label>
-            <label>Login<input id="lgl" autocomplete="username" autocapitalize="none" spellcheck="false"></label>
-            <label>Senha<input type="password" id="lgp" autocomplete="current-password"></label>
-            <p class="nt" id="lge" role="alert" style="color:var(--er);margin:0"></p>
-            <button class="btn p">Entrar</button>
-        </form>
+    <dialog id="lg" oncancel="event.preventDefault()" aria-labelledby="lgt">
+        <div class="lgw">
+            <span class="lgo lgo1"></span><span class="lgo lgo2"></span><span class="lgo lgo3"></span>
+            <div class="lgc">
+                <div class="lgm"><i id="lgi"></i>
+                    <div><b>HUB PATRIMONIAL</b><small>Gestão e Controle</small></div>
+                </div>
+                <h2 id="lgt">Acesso ao sistema</h2>
+                <p class="lgd" id="lgd">Entre com seu login e senha.</p>
+                <form id="lgf" class="fm" style="grid-template-columns:1fr">
+                    <div id="lgs" class="ib" style="margin:0">Primeiro acesso: cadastre o administrador do sistema. A chave de
+                        instalação é o valor da variável APP_PASSWORD configurada na Vercel.</div>
+                    <label data-s>Chave de instalação<input type="password" id="lgk" autocomplete="off"></label>
+                    <label data-s>Nome completo<input id="lgn" autocomplete="name" maxlength="100"></label>
+                    <label>Login<input id="lgl" autocomplete="username" autocapitalize="none" spellcheck="false"></label>
+                    <label>Senha<span class="lgp"><input type="password" id="lgp" autocomplete="current-password"><button type="button" id="lgv" title="Mostrar senha" aria-label="Mostrar senha" aria-pressed="false"></button></span></label>
+                    <p class="nt" id="lgcl" hidden style="margin:0">A tecla Caps Lock está ativada.</p>
+                    <p class="nt" id="lge" role="alert" style="color:var(--er);margin:0"></p>
+                    <button class="btn p lgb">Entrar</button>
+                </form>
+            </div>
+            <p class="lgr">Secretaria de Administração e Gestão - SEAD<br>Coordenadoria de Patrimônio - CPAT<br>Departamento de Bens Móveis - DBM<br><span id="lgver"></span></p>
+        </div>
     </dialog>
     <script src="/xlsx.min.js"></script>
     <script src="/js/base.js"></script>

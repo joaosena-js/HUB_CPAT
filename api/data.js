@@ -18,10 +18,10 @@ const {
     tratarErro,
 } = require('../lib/comum');
 
-const TIPOS = ['Transferência', 'Alienação', 'Caixa do setor'];
+const TIPOS = ['Transferência', 'Alienação', 'Veículo', 'Caixa do setor'];
 // Caixa do Setor desativada na v7.0: os processos antigos continuam no banco para serem recategorizados, mas não entram novos
 const CAIXA = 'Caixa do setor',
-    MSG_CAIXA = 'A Caixa do Setor foi desativada. Cadastre o processo como Alienação ou Transferência.';
+    MSG_CAIXA = 'A Caixa do Setor foi desativada. Cadastre o processo como Alienação, Transferência ou Veículo.';
 const CAMPOS = [
     'numero',
     'descricao',

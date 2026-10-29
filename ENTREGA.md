@@ -1,5 +1,42 @@
 # Hub DBM: entrega
 
+## Versão 7.2: processo de Veículo, nova tela de login e cabeçalho do relatório
+
+**Tipo de processo Veículo:** o campo Tipo do cadastro de processo agora tem Transferência, Alienação e Veículo.
+- **Campos do processo de Veículo:** Nº do processo, Descrição, Data de Tramitação, Órgão, Nº do ofício (opcional), Data do ofício, Status, Responsável, Data de conclusão e Observação.
+- **Campos que não aparecem nesse tipo:** quantidade de itens, órgão recebedor, motivo e setor atual. No detalhe, "Documento" aparece como "Ofício".
+- **Onde aparecem:** os processos de Veículo ficam na tela **Gestão de Veículos > Processos**, junto com os processos informados no cadastro dos veículos. A tela também ganhou:
+  - o botão **Novo processo de veículo**;
+  - o filtro por tipo;
+  - as colunas Data de Tramitação, Nº do ofício, Responsável e Conclusão.
+- **Nas outras telas:**
+  - continuam em Todos os Processos e Idade de Saldo, como os demais tipos;
+  - o Dashboard ganhou o grupo "Processos de Veículo" (Total, Concluídos, Em aguardo), que aparece quando existe pelo menos um;
+  - nos Gerenciais, entram no quadro Processos por tipo, sem contagem de bens.
+- **Detalhe do processo:** de qualquer tipo, mostra os veículos vinculados a ele.
+
+**Tela de login:** foi refeita.
+- Ocupa a tela toda, com fundo em gradiente animado e o cartão de acesso com a marca do Hub Patrimonial.
+- Tem botão para mostrar ou esconder a senha e aviso quando o Caps Lock está ligado.
+- O rodapé mostra SEAD, CPAT, DBM e a versão do sistema.
+- A animação é desligada para quem configurou o computador para reduzir movimento, e a tela funciona no tema escuro e no celular.
+
+**Relatório Controle de Processos (PDF dos Gerenciais):** o cabeçalho passou a ter, nesta ordem:
+- Secretaria de Administração e Gestão - SEAD
+- Coordenadoria de Patrimônio - CPAT
+- Departamento de Bens Móveis - DBM
+- o título Relatório Controle de Processos.
+
+Não há alteração no banco de dados.
+
+| Arquivo | Situação |
+|---|---|
+| `index.html`, `js/base.js`, `js/processos.js`, `js/veiculos.js`, `js/relatorios.js`, `api/data.js`, `GUIA-DO-CODIGO.md`, `ENTREGA.md` | alterados |
+
+Publicação: substitua os arquivos (ou aplique `hub-dbm-v7.2.patch` com `git am --keep-cr` sobre a v7.1), faça o push e recarregue com Ctrl + F5.
+
+---
+
 ## Versão 7.1: importação da planilha de veículos
 
 **Importar planilha** é um botão novo na tela Veículos, só para o administrador. Ele lê a planilha "VEÍCULOS DEPÓSITO" no formato atual, com as colunas UNIDADE, PROCESSO, PLACA, TOMBO, TIPO, MODELO, ANO, CHASSI, RENAVAM, ÚLTIMO LICENCIAMENTO e DESTINAÇÃO.
