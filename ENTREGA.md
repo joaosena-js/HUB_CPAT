@@ -1,5 +1,23 @@
 # Hub DBM: entrega
 
+## Versão 7.3: tela de abertura e troca de domínio
+
+**Tela de abertura:** antes, ao abrir o sistema, a tela inicial aparecia vazia por um instante e só depois vinha o login. Agora o sistema fica oculto até a sessão ser confirmada. Nesse intervalo aparece uma tela de abertura com o mesmo fundo do login, o nome HUB PATRIMONIAL e "Carregando…".
+- **Sem sessão:** a abertura passa direto para o login. Depois de entrar, o início aparece já com os dados.
+- **Com sessão aberta:** a abertura passa direto para o início, sem mostrar o login.
+- **Falha de conexão:** a abertura sai e aparece a mensagem "Não foi possível conectar ao banco".
+- **Arquivos alterados:** `index.html` (classe `ini` no `<body>`, bloco `#ini` e estilos), `js/app.js` (retira a classe depois do primeiro carregamento) e `js/base.js` (versão 7.3).
+
+**Troca de domínio (processos-dbm.vercel.app para hub-patrimonial.vercel.app):** não exige mudança no código. O sistema não tem endereço fixo: a API é chamada pelo caminho relativo (`/api/...`), o cookie de sessão não define domínio e a Lista de Verificação monta o endereço das imagens com o domínio que estiver em uso. A troca é feita no painel da Vercel:
+1. Abra o projeto e vá em **Settings > Domains**.
+2. Clique em **Add Domain**, digite `hub-patrimonial.vercel.app` e confirme. Se a Vercel informar que o nome já está em uso, ele pertence a outra conta e será preciso escolher outro.
+3. No domínio antigo `processos-dbm.vercel.app`, use **Edit** e marque o redirecionamento para `hub-patrimonial.vercel.app` (código 308). Assim, links e favoritos antigos continuam funcionando.
+4. Não é preciso alterar as variáveis de ambiente, o banco Neon nem o armazenamento Blob.
+
+Depois da troca, cada servidor precisa entrar de novo uma vez, porque o navegador guarda a sessão separada para cada domínio. Se o endereço antigo estiver em algum documento, manual ou atalho do setor, vale atualizar.
+
+**Testes:** abertura sem sessão, com sessão, com conexão lenta (1,5 s), com falha do servidor e no celular (10 verificações); regressão da API (20 e 39 verificações) e das telas sem diferenças.
+
 ## Versão 7.2: processo de Veículo, nova tela de login e cabeçalho do relatório
 
 **Tipo de processo Veículo:** o campo Tipo do cadastro de processo agora tem Transferência, Alienação e Veículo.

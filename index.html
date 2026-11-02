@@ -1924,6 +1924,65 @@
                 grid-template-columns: 1fr
             }
         }
+        /* Abertura: enquanto a sessão é verificada, o sistema fica oculto e aparece só o fundo da tela de login */
+        body.ini #sd,
+        body.ini #tp,
+        body.ini #mn {
+            visibility: hidden
+        }
+
+        #ini {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            color: #fff
+        }
+
+        body:not(.ini) #ini {
+            display: none
+        }
+
+        .inic {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            font-size: 14px;
+            color: #dbeafe
+        }
+
+        .inic i {
+            width: 56px;
+            height: 56px;
+            border-radius: 15px;
+            background: linear-gradient(135deg, #1d4ed8, #0e7490);
+            display: grid;
+            place-items: center;
+            box-shadow: 0 16px 40px rgba(2, 8, 23, .4)
+        }
+
+        .inic b {
+            font-size: 17px;
+            letter-spacing: .4px;
+            color: #fff
+        }
+
+        .inic span {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, .25);
+            border-top-color: #fff;
+            animation: inigira .8s linear infinite
+        }
+
+        @keyframes inigira {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
         /* Tela de login: ocupa a tela toda, com fundo em gradiente animado */
         #lg {
             width: 100vw;
@@ -2127,7 +2186,11 @@
     </style>
 </head>
 
-<body>
+<body class="ini">
+    <div id="ini" class="lgw" role="status" aria-live="polite">
+        <span class="lgo lgo1"></span><span class="lgo lgo2"></span><span class="lgo lgo3"></span>
+        <div class="inic"><i><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg></i><b>HUB PATRIMONIAL</b><span></span>Carregando…</div>
+    </div>
     <aside id="sd">
         <div class="lg"><i></i>
             <div><b>HUB PATRIMONIAL</b><small>Gestão e Controle</small><small id="ver"></small></div>

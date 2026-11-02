@@ -30,7 +30,7 @@ Os arquivos são carregados pelo `index.html` nesta ordem, e cada um pode usar o
 | `js/veiculos.js` | Gestão de Veículos: tela Veículos (indicadores, pendências, lista), detalhe com fotos, formulário, Lista de Verificação e a impressão dela, importação da planilha do depósito e a tela Processos com veículos |
 | `js/inicio.js` | Tela Início, com os atalhos, a agenda da semana e os itens do usuário |
 | `js/usuarios.js` | Telas Usuários e Log de atividades (somente administrador) |
-| `js/app.js` | Último a ser carregado: desenha a primeira tela e liga a atualização automática |
+| `js/app.js` | Último a ser carregado: desenha a primeira tela, retira a tela de abertura (`body.ini`) depois do primeiro carregamento e liga a atualização automática |
 
 ### Servidor (`api/` e `lib/`)
 
