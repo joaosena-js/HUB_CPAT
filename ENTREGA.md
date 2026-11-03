@@ -1,5 +1,30 @@
 # Hub Patrimonial: entrega
 
+## Versão 7.6: documentos do veículo, detalhe em abas e prontuário em paisagem
+
+**Detalhe do veículo em abas:** Informações do veículo, Documentos, Fotos e Lista de Verificação. As abas mostram a contagem (por exemplo, "Documentos (3/8)" e "Fotos (2)"). Depois de salvar uma foto, um documento ou a Lista de Verificação, a janela continua na mesma aba.
+
+**Aba Documentos:** os documentos CRLV, DUT, Relatório do AJURI, Ficha do DETRAN, DNIT, IMMU, PRF e SEFAZ.
+- Marque a caixa do documento que o veículo possui. Aparece o campo para anexar o arquivo (PDF, JPG ou PNG, até 10 MB, até 5 arquivos por documento).
+- Anexar um arquivo marca o documento automaticamente.
+- Para desmarcar um documento que tem arquivo, remova o arquivo antes. O sistema avisa.
+- O servidor confere o conteúdo real do arquivo (um arquivo renomeado para .pdf é recusado), como já acontece nas fotos.
+- Remover um arquivo segue a regra das fotos: quem enviou ou o administrador.
+- Tudo fica no Log de atividades (documento marcado, desmarcado, enviado e removido).
+- O envio de arquivos depende do Vercel Blob, o mesmo das fotos. Sem o Blob, a marcação funciona e o campo de envio mostra um aviso.
+
+**Botão Baixar prontuário** (no topo do detalhe do veículo): abre a folha A4 em paisagem para imprimir ou salvar em PDF, com o brasão do Governo, nº de ordem, órgão, placa em destaque, os dados do cadastro, as caixas dos 8 documentos (marcadas com X quando o veículo possui o documento) e a data de emissão. A emissão fica registrada no log como exportação em PDF.
+
+**Nº de ordem:** novo campo do veículo, igual à coluna "#" da planilha do depósito. Ele aparece no detalhe, no formulário, na primeira coluna da lista e no Excel.
+- Para preencher os veículos que já estão no Hub, o administrador abre Veículos > Importar planilha e escolhe a mesma planilha. A prévia mostra quantos veículos terão o nº de ordem atualizado. O botão "Atualizar nº de ordem" grava só esse número e não altera nenhum outro dado.
+- Na importação de veículos novos, o nº de ordem já entra junto.
+
+**Banco:** as colunas `veiculos.ordem` e `veiculos.documentos` e a tabela `veiculo_documentos` são criadas sozinhas no primeiro acesso. O registro está em `db/migracao_008_veiculos_documentos.sql`. Ao excluir um veículo, os arquivos dos documentos também são apagados do armazenamento.
+
+**Arquivos alterados:** `js/veiculos.js`, `api/veiculos.js`, `lib/comum.js`, `index.html` (estilos), `js/base.js` (versão), `img/prontuario-cabecalho.png` e `img/prontuario-rodape.png` (novas), `db/migracao_008_veiculos_documentos.sql` (novo), `GUIA-DO-CODIGO.md`.
+
+**Testes (local, com Postgres e simulador do Blob):** importação da planilha de 01/09/2026 (78 veículos, o NOX-0679 recebeu o nº 76); reimportação atualizando só o nº de ordem; marcação e desmarcação de documentos; envio de PDF e JPG; recusa de arquivo falso e de documento inválido; bloqueio ao desmarcar documento com arquivo; exclusão do veículo apagando fotos e documentos; nº de ordem inválido recusado pelo servidor; prontuário gerado em 1 página A4 paisagem; tela no celular sem rolagem lateral (só as abas rolam). O envio real ao Vercel Blob ainda não foi testado na Vercel.
+
 ## Versão 7.5: mensagens do sistema, troca obrigatória de senha e encerramento por inatividade
 
 **Mensagens do próprio sistema:** as 42 janelas cinza do navegador (alert, confirm e prompt) foram trocadas por janelas com o visual do Hub.

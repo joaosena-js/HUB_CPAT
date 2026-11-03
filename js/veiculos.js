@@ -1,4 +1,5 @@
-// Gestão de Veículos: veículos no depósito, com fotos por parte do veículo e Lista de Verificação de Veículo (vistoria)
+// Gestão de Veículos: veículos no depósito, com documentos, fotos por parte do veículo, Lista de Verificação de Veículo (vistoria)
+// e prontuário (folha A4 que fica dentro do veículo)
 const VE_SIT = ['Regularizado', 'Em regularização', 'Não regularizado'],
     VE_SIT_COR = { Regularizado: 'g', 'Em regularização': 'y', 'Não regularizado': 'r' };
 // Sugestões iniciais dos campos Tipo e Destinação (o administrador ajusta em Listas e Parâmetros)
@@ -48,6 +49,17 @@ const VE_ITENS = [
     'LCRV',
     'Macaco',
 ];
+// Documentos do veículo (v7.6): mesmos códigos da API (DOCUMENTOS em api/veiculos.js)
+const VE_DOCS = [
+    ['crlv', 'CRLV'],
+    ['dut', 'DUT'],
+    ['ajuri', 'Relatório do AJURI'],
+    ['detran', 'Ficha do DETRAN'],
+    ['dnit', 'DNIT'],
+    ['immu', 'IMMU'],
+    ['prf', 'PRF'],
+    ['sefaz', 'SEFAZ'],
+];
 const VE_MARCAS = [
     ['S', 'Sim, existe ou OK'],
     ['N', 'Não existe'],
@@ -79,6 +91,9 @@ const VES = { q: '', f: {}, page: 1, size: 25, open: false },
 
 // Lista de Verificação preenchida: tem data ou pelo menos um item marcado
 const veVistOk = v => !!(v.vistoria && (v.vistoria.data || (v.vistoria.itens || []).some(Boolean)));
+// Documento que o veículo possui: marcado pelo usuário ou com arquivo anexado
+const veTemDoc = (v, d) => !!((v.documentos || {})[d] || (v.anexos || {})[d]);
+const veQtdDocs = v => VE_DOCS.filter(([d]) => veTemDoc(v, d)).length;
 // Placa no formato de exibição: ABC-1234 (antiga) ou ABC1D23 (Mercosul)
 const vePlaca = p => (/^[A-Z]{3}\d{4}$/.test(p || '') ? p.slice(0, 3) + '-' + p.slice(3) : p || '');
 // Nome curto do veículo para títulos: modelo e placa (ou tombo)
@@ -145,6 +160,7 @@ const veBusca = () => {
 const veRows = () => veBusca().filter(x => veOk(x, VES.f));
 // Colunas: título, valor para exportação, HTML opcional para a tela
 const VE_C = [
+    ['Nº', v => v.ordem ?? ''],
     ['Placa', v => vePlaca(v.placa), v => `<b>${esc(vePlaca(v.placa)) || '—'}</b>`],
     ['Tombo', v => v.tombo],
     ['Tipo', v => v.tipo],
@@ -160,6 +176,7 @@ const VE_X = (() => {
     const c = Object.fromEntries(VE_C.map(x => [x[0], x]));
     return [
         ['ID', v => v.id],
+        ['Nº de ordem', v => v.ordem ?? ''],
         c['Órgão'],
         c['Processo'],
         c['Placa'],
@@ -177,6 +194,7 @@ const VE_X = (() => {
         ['Saída do depósito', v => (v.saida ? fmt(v.saida) : '')],
         ['Lista de Verificação', v => (veVistOk(v) ? 'Preenchida' : 'Não preenchida')],
         ['Fotos', v => v.fotos],
+        ['Documentos que possui', v => VE_DOCS.filter(([d]) => veTemDoc(v, d)).map(x => x[1]).join(', ')],
         ['Observações', v => v.obs],
     ];
 })();
@@ -353,8 +371,9 @@ const veEx = k =>
         VES.q || Object.values(VES.f).some(Boolean) ? 'com a pesquisa e os filtros aplicados na tela' : ''
     );
 
-// Janela de detalhe de um veículo: dados, fotos e Lista de Verificação
-async function veDet(id) {
+// Janela de detalhe de um veículo, em abas: informações, documentos, fotos e Lista de Verificação.
+// aba = info, docs, fotos ou vist (sem aba, abre nas informações).
+async function veDet(id, aba = 'info') {
     let v = VE.find(x => x.id == id);
     if (!v) {
         await veLoad(1);
@@ -362,18 +381,127 @@ async function veDet(id) {
     }
     if (!v) return;
     const f = (l, x) => `<div>${l}<b>${esc(x) || '—'}</b></div>`,
-        vs = v.vistoria || {};
-    $('#dd').innerHTML =
-        `<h2><span>${esc(veNome(v))}</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2>
-            <div class="dl">${f('Placa', vePlaca(v.placa))}${f('Tombo', v.tombo)}${f('Tipo', v.tipo)}${f('Modelo', v.modelo)}${f('Ano', v.ano)}${f('Órgão', v.orgao)}${f('Chassi', v.chassi)}${f('RENAVAM', v.renavam)}${f('Último licenciamento', v.ultimo_licenciamento)}<div>Situação documental<b>${veSit(v)}</b></div>${f('Destinação', v.destinacao)}<div>Depósito<b>${veDep(v)}</b></div>${f('Entrada no depósito', v.entrada ? fmt(v.entrada) : '')}<div>Processo<b>${v.processo_id ? `<a href="#" onclick="event.preventDefault();det(${v.processo_id})">${esc(v.processo_numero)}</a>${v.processo_tipo ? ' · ' + esc(v.processo_tipo) : ''}` : v.processo_numero ? `${esc(v.processo_numero)} <small class="nt">(não cadastrado no Hub)</small>` : '—'}</b></div>${v.obs ? `<div class="w">Observações<b style="white-space:pre-wrap">${esc(v.obs)}</b></div>` : ''}
+        vs = v.vistoria || {},
+        nd = veQtdDocs(v),
+        abas = [
+            ['info', 'Informações do veículo'],
+            ['docs', `Documentos (${nd}/${VE_DOCS.length})`],
+            ['fotos', `Fotos (${v.fotos || 0})`],
+            ['vist', 'Lista de Verificação' + (veVistOk(v) ? ' (preenchida)' : '')],
+        ];
+    let corpo = '';
+    if (aba == 'info')
+        corpo = `<div class="dl">${f('Nº de ordem', v.ordem)}${f('Placa', vePlaca(v.placa))}${f('Tombo', v.tombo)}${f('Tipo', v.tipo)}${f('Modelo', v.modelo)}${f('Ano', v.ano)}${f('Órgão', v.orgao)}${f('Chassi', v.chassi)}${f('RENAVAM', v.renavam)}${f('Último licenciamento', v.ultimo_licenciamento)}<div>Situação documental<b>${veSit(v)}</b></div>${f('Destinação', v.destinacao)}<div>Depósito<b>${veDep(v)}</b></div>${f('Entrada no depósito', v.entrada ? fmt(v.entrada) : '')}<div>Processo<b>${v.processo_id ? `<a href="#" onclick="event.preventDefault();det(${v.processo_id})">${esc(v.processo_numero)}</a>${v.processo_tipo ? ' · ' + esc(v.processo_tipo) : ''}` : v.processo_numero ? `${esc(v.processo_numero)} <small class="nt">(não cadastrado no Hub)</small>` : '—'}</b></div>${v.obs ? `<div class="w">Observações<b style="white-space:pre-wrap">${esc(v.obs)}</b></div>` : ''}
             </div>
-<h3 class="kt" style="margin:0 20px 8px">${ic('clip', 16)} Lista de Verificação</h3>
-<div class="vst">${veVistOk(v) ? `Preenchida${vs.data ? ' (vistoria em ' + fmt(vs.data) + ')' : ''} por ${esc(vs.registrado_por || '—')}.` : 'Ainda não preenchida. A impressão sai com os dados do veículo e o restante em branco, para preencher à mão.'}<span class="sp"></span><button class="btn s" onclick="veVist(${v.id})">${ic('pen', 14)} ${veVistOk(v) ? 'Editar' : 'Preencher'}</button><button class="btn s" onclick="veImprimir(${v.id})">${ic('print', 14)} Imprimir</button></div>
-<h3 class="kt" style="margin:14px 20px 8px">${ic('cam', 16)} Fotos do veículo</h3>
-<div id="vf" class="vf"><p class="nt">Carregando fotos…</p></div>
 <div class="ac"><button class="btn p" onclick="veEd(${v.id})">${ic('pen', 15)} Editar</button><span class="nt">Atualizado em ${esc(v.atualizado_em)}${v.criado_por_nome ? ' · cadastrado por ' + esc(v.criado_por_nome) : ''}</span><span class="sp"></span>${adm() ? `<button class="btn d" onclick="veRm(${v.id})">${ic('trash', 15)} Excluir</button>` : ''}</div>`;
+    else if (aba == 'docs')
+        corpo = `<p class="nt" style="margin:0 20px 10px">Marque os documentos que o veículo possui e anexe o arquivo de cada um (PDF, JPG ou PNG, até 10 MB). Documento com arquivo anexado fica marcado no prontuário.</p><div id="vdoc" class="vf"><p class="nt">Carregando documentos…</p></div>`;
+    else if (aba == 'fotos') corpo = `<div id="vf" class="vf"><p class="nt">Carregando fotos…</p></div>`;
+    else
+        corpo = `<div class="vst">${veVistOk(v) ? `Preenchida${vs.data ? ' (vistoria em ' + fmt(vs.data) + ')' : ''} por ${esc(vs.registrado_por || '—')}.` : 'Ainda não preenchida. A impressão sai com os dados do veículo e o restante em branco, para preencher à mão.'}<span class="sp"></span><button class="btn s" onclick="veVist(${v.id})">${ic('pen', 14)} ${veVistOk(v) ? 'Editar' : 'Preencher'}</button><button class="btn s" onclick="veImprimir(${v.id})">${ic('print', 14)} Imprimir</button></div>`;
+    $('#dd').innerHTML =
+        `<h2 class="vh"><span>${esc(veNome(v))}</span><button class="btn s p" onclick="vePront(${v.id})" title="Abre a folha A4 do prontuário para imprimir ou salvar em PDF">${ic('print', 15)} Baixar prontuário</button><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2>
+<div class="vab"><span class="sg2" role="tablist">${abas.map(([k, l]) => `<button role="tab" aria-selected="${k == aba}" class="${k == aba ? 'on' : ''}" onclick="veDet(${v.id},'${k}')">${l}</button>`).join('')}</span></div>
+${corpo}<div style="height:14px"></div>`;
     if (!$('#dd').open) $('#dd').showModal();
-    veFotos(v.id);
+    if (aba == 'fotos') veFotos(v.id);
+    if (aba == 'docs') veDocs(v.id);
+}
+
+// Aba Documentos: os 8 documentos, com a marcação "possui" e os arquivos anexados de cada um
+async function veDocs(id) {
+    const e = $('#vdoc');
+    if (!e) return;
+    const v = VE.find(x => x.id == id);
+    if (!v) return;
+    let l = [];
+    if (VE_DOCS.some(([d]) => (v.anexos || {})[d]))
+        try {
+            l = (await api({ op: 'docs', id }, '/api/veiculos')).docs;
+        } catch (er) {
+            e.innerHTML = '<p class="nt">Não foi possível carregar os documentos anexados.</p>';
+            return;
+        }
+    if (!$('#vdoc')) return;
+    e.innerHTML = `<div class="vdl">${VE_DOCS.map(([d, n]) => {
+        const tem = veTemDoc(v, d),
+            a = l.filter(x => x.documento == d);
+        const st = !tem
+            ? 'Não possui'
+            : a.length
+              ? `${a.length} arquivo${a.length > 1 ? 's' : ''} anexado${a.length > 1 ? 's' : ''}`
+              : 'Possui, sem arquivo anexado';
+        const arqs = a
+            .map(
+                x =>
+                    `<li>${ic('clip', 14)} ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.nome)}</a>` : esc(x.nome)}<small>${esc(x.enviado_por_nome)} · ${esc(x.enviado_em)}</small>${adm() || (ME && x.enviado_por == ME.id) ? `<button class="btn s d" title="Remover arquivo" onclick="veDocRm(${x.id},${id})">${ic('trash', 13)}</button>` : ''}</li>`
+            )
+            .join('');
+        const envio = VE_FOTOS_OK
+            ? `<form class="vde" onsubmit="event.preventDefault();veDocUp(${id},'${d}')"><input type="file" id="vd_${d}" accept=".pdf,.jpg,.jpeg,.png" aria-label="Arquivo do ${esc(n)}" required><button class="btn p s" id="vd_b_${d}">${ic('up', 14)} Anexar</button></form>`
+            : '<p class="nt" style="margin:0">O envio de arquivos será liberado quando o armazenamento de anexos (Vercel Blob) for configurado na Vercel.</p>';
+        return `<div class="vdr${tem ? ' on' : ''}"><label class="vdc"><input type="checkbox" ${tem ? 'checked' : ''} onchange="veDocMarca(${id},'${d}',this)"><b>${esc(n)}</b></label><span class="nt">${st}</span>${tem ? `<div class="vdx">${arqs ? `<ul>${arqs}</ul>` : ''}${envio}</div>` : ''}</div>`;
+    }).join('')}</div>`;
+}
+// Marca ou desmarca um documento que o veículo possui (para desmarcar, os arquivos anexados precisam ser removidos antes)
+async function veDocMarca(id, d, el) {
+    const tem = el.checked;
+    el.disabled = true;
+    try {
+        await api({ op: 'doc_marcar', id, doc: d, tem }, '/api/veiculos');
+        await veLoad(1);
+        veDet(id, 'docs');
+    } catch (e) {
+        el.checked = !tem;
+        el.disabled = false;
+        aviso(e.message, 'Não foi possível alterar o documento', 'erro');
+    }
+}
+// Anexa o arquivo escolhido a um documento: o servidor libera o envio, o navegador envia ao armazenamento e o servidor confere
+async function veDocUp(id, d) {
+    const inp = $('#vd_' + d),
+        bt = $('#vd_b_' + d);
+    let f = inp && inp.files[0];
+    if (!f) return aviso('Escolha o arquivo do documento.');
+    const ext = f.name.split('.').pop().toLowerCase();
+    if (!['pdf', 'jpg', 'jpeg', 'png'].includes(ext)) return aviso('Envie o documento em PDF, JPG ou PNG.', 'Arquivo não aceito');
+    bt.disabled = true;
+    try {
+        if (ext != 'pdf') f = await veReduz(f);
+        if (f.size > 10 * 1024 * 1024) throw new Error('o arquivo deve ter no máximo 10 MB');
+        const e2 = f.name.split('.').pop().toLowerCase(),
+            tipo = e2 == 'pdf' ? 'application/pdf' : e2 == 'png' ? 'image/png' : 'image/jpeg';
+        const j = await api({ op: 'doc_preparar', id, doc: d, nome: f.name, tipo, tamanho: f.size }, '/api/veiculos');
+        const r = await fetch(j.url, { method: 'PUT', headers: j.headers, body: f }).catch(() => null);
+        if (!r || !r.ok)
+            throw new Error(
+                'o arquivo não foi enviado ao armazenamento' + (r ? ` (código ${r.status})` : '. Verifique a conexão.')
+            );
+        await api({ op: 'doc_confirmar', anexo_id: j.anexo_id }, '/api/veiculos');
+        await veLoad(1);
+        veDet(id, 'docs');
+        toast('Documento anexado');
+    } catch (e) {
+        bt.disabled = false;
+        aviso(e.message, 'Não foi possível anexar o documento', 'erro');
+    }
+}
+// Remove um arquivo anexado (quem enviou ou o administrador). O documento continua marcado como "possui".
+async function veDocRm(aid, id) {
+    if (
+        await confirma(
+            'O arquivo será apagado do armazenamento. O documento continua marcado como "possui" até você desmarcar. Esta ação não pode ser desfeita.',
+            'Remover arquivo',
+            'Remover arquivo',
+            true
+        )
+    )
+        run(async () => {
+            await api({ op: 'doc_remover', anexo_id: aid }, '/api/veiculos');
+            await veLoad(1);
+            veDet(id, 'docs');
+            toast('Arquivo removido');
+        });
 }
 
 // Carrega e mostra as fotos do veículo (Foto 1 - Frontal, Foto 2 - Traseira…) e o envio de novas fotos
@@ -460,7 +588,7 @@ async function veUp(id) {
         bt.disabled = false;
     }
     await veLoad(1);
-    veFotos(id);
+    veDet(id, 'fotos');
     if (erros.length) aviso(erros.join('\n'), 'Não foi possível enviar', 'erro');
     else toast(fs.length > 1 ? fs.length + ' fotos enviadas' : 'Foto enviada');
 }
@@ -486,7 +614,7 @@ async function veRmFoto(fid, id) {
         run(async () => {
             await api({ op: 'foto_remover', foto_id: fid }, '/api/veiculos');
             await veLoad(1);
-            veFotos(id);
+            veDet(id, 'fotos');
             toast('Foto removida');
         });
 }
@@ -497,6 +625,7 @@ function veEd(id) {
         ? VE.find(x => x.id == id)
         : {
               id: 0,
+              ordem: '',
               orgao: '',
               processo_numero: '',
               placa: '',
@@ -520,10 +649,12 @@ function veEd(id) {
     $('#dd').innerHTML =
         `<h2><span>${id ? 'Editar veículo' : 'Novo veículo'}</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2><form class="fm" onsubmit="event.preventDefault();veSv(${v.id})">
 <h3 class="kt w" style="margin:0">Identificação</h3>
-${inp('placa', 'Placa', 'maxlength="8" placeholder="ABC1234 ou ABC1D23" style="text-transform:uppercase"')}${inp('tombo', 'Tombo', 'maxlength="50"')}
-${inp('tipo', 'Tipo', 'list="dl_vt" maxlength="60" placeholder="Ex.: Automóvel"')}${inp('modelo', 'Modelo', 'maxlength="120" required placeholder="Ex.: Gol 1.0"')}
-${inp('ano', 'Ano (fabricação/modelo)', 'maxlength="9" placeholder="Ex.: 2010/2011"')}${inp('chassi', 'Chassi', 'maxlength="30" style="text-transform:uppercase"')}
-${inp('renavam', 'RENAVAM', 'maxlength="14" inputmode="numeric" placeholder="11 números"')}${inp('ultimo_licenciamento', 'Último licenciamento (ano)', `type="number" min="1900" max="${ano}" step="1"`)}
+${inp('ordem', 'Nº de ordem (planilha do depósito)', 'type="number" min="1" max="99999" step="1" placeholder="Ex.: 76"')}${inp('placa', 'Placa', 'maxlength="8" placeholder="ABC1234 ou ABC1D23" style="text-transform:uppercase"')}
+${inp('tombo', 'Tombo', 'maxlength="50"')}
+${inp('tipo', 'Tipo', 'list="dl_vt" maxlength="60" placeholder="Ex.: Automóvel"')}
+${inp('modelo', 'Modelo', 'maxlength="120" required placeholder="Ex.: Gol 1.0"')}${inp('ano', 'Ano (fabricação/modelo)', 'maxlength="9" placeholder="Ex.: 2010/2011"')}
+${inp('chassi', 'Chassi', 'maxlength="30" style="text-transform:uppercase"')}${inp('renavam', 'RENAVAM', 'maxlength="14" inputmode="numeric" placeholder="11 números"')}
+${inp('ultimo_licenciamento', 'Último licenciamento (ano)', `type="number" min="1900" max="${ano}" step="1"`)}
 <h3 class="kt w" style="margin:8px 0 0">Origem e situação</h3>
 ${inp('orgao', 'Órgão', 'list="dl_vo" maxlength="200"')}${inp('processo_numero', 'Processo (opcional)', 'list="dl_vpr" maxlength="100" placeholder="Nº do processo"')}
 <label>Situação documental<select id="v_situacao_doc"><option value="">Não informada</option>${VE_SIT.map(s => `<option ${v.situacao_doc == s ? 'selected' : ''}>${s}</option>`).join('')}</select></label>${inp('destinacao', 'Destinação', 'list="dl_vd" maxlength="100"')}
@@ -542,6 +673,7 @@ ${dl('dl_vt', L.tipos_veiculo || VE_TIPOS_PAD)}${dl('dl_vd', L.destinacoes || VE
 function veSv(id) {
     const b = { id };
     [
+        'ordem',
         'placa',
         'tombo',
         'tipo',
@@ -573,7 +705,7 @@ async function veRm(id) {
         await confirma(
             'O veículo' +
                 (v && v.placa ? ' ' + v.placa : '') +
-                ', as fotos e a Lista de Verificação dele serão apagados. Esta ação não pode ser desfeita.',
+                ', as fotos, os documentos anexados e a Lista de Verificação dele serão apagados. Esta ação não pode ser desfeita.',
             'Excluir veículo',
             'Excluir veículo',
             true
@@ -602,7 +734,7 @@ function veVist(id) {
     const linha = (n, i) =>
         `<tr><td>${String(i + 1).padStart(2, '0')}. ${n}</td>${VE_MARCAS.map(([m, t]) => `<td><input type="radio" name="vi${i}" value="${m}" title="${t}" aria-label="${n}: ${t}" ${it[i] == m ? 'checked' : ''}></td>`).join('')}</tr>`;
     $('#dd').innerHTML =
-        `<h2><span>Lista de Verificação · ${esc(veNome(v))}</span><button class="btn s" onclick="veDet(${id})">${ic('x', 15)}</button></h2><form class="fm" id="vsf" onsubmit="event.preventDefault();veVistSv(${id})">
+        `<h2><span>Lista de Verificação · ${esc(veNome(v))}</span><button class="btn s" onclick="veDet(${id},'vist')">${ic('x', 15)}</button></h2><form class="fm" id="vsf" onsubmit="event.preventDefault();veVistSv(${id})">
 <p class="nt w" style="margin:0">Órgão, modelo, ano, placa, chassi e RENAVAM vêm do cadastro do veículo.</p>
 ${inp('data', 'Data da vistoria', `type="date" max="${TS()}"`)}${inp('estado', 'Estado de conservação', 'list="dl_ve" maxlength="60"')}
 ${inp('marca', 'Marca', 'maxlength="60"')}${inp('categoria', 'Categoria', 'maxlength="60"')}
@@ -628,7 +760,7 @@ ${inp('marca', 'Marca', 'maxlength="60"')}${inp('categoria', 'Categoria', 'maxle
 <label class="w">Observações<textarea id="vs_obs" rows="3" maxlength="2000">${esc(s.obs || '')}</textarea></label>
 <h3 class="kt w" style="margin:8px 0 0">Responsáveis</h3>
 ${pes('entrega', 'Responsável pela entrega')}${pes('vistoriador', 'Responsável pela vistoria')}
-<div class="w" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn p">${ic('ok', 15)} Salvar</button><button type="button" class="btn" onclick="veVistSv(${id},1)">${ic('print', 15)} Salvar e imprimir</button><button type="button" class="btn" onclick="veDet(${id})">Cancelar</button></div></form>
+<div class="w" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn p">${ic('ok', 15)} Salvar</button><button type="button" class="btn" onclick="veVistSv(${id},1)">${ic('print', 15)} Salvar e imprimir</button><button type="button" class="btn" onclick="veDet(${id},'vist')">Cancelar</button></div></form>
 <datalist id="dl_ve">${['Bom', 'Regular', 'Ruim', 'Sucata'].map(x => `<option value="${x}">`).join('')}</datalist><datalist id="dl_vc">${['Vazio', '1/4', '1/2', '3/4', 'Cheio'].map(x => `<option value="${x}">`).join('')}</datalist>`;
     if (!$('#dd').open) $('#dd').showModal();
     $('#dd').scrollTop = 0;
@@ -664,7 +796,7 @@ function veVistSv(id, imp) {
     umaVez(async () => {
         await api({ op: 'vistoria', id, vistoria }, '/api/veiculos');
         await veLoad(1);
-        veDet(id);
+        veDet(id, 'vist');
         if (tab == 'veic') draw();
         toast('Lista de Verificação registrada');
         if (imp) veImprimir(id);
@@ -739,6 +871,56 @@ table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:1.
     );
 }
 
+// Prontuário do veículo: folha A4 em paisagem que fica dentro do veículo no depósito, com nº de ordem, órgão, placa em destaque,
+// dados do cadastro e as caixas dos documentos que o veículo possui. Abre a impressão do navegador (imprimir ou salvar em PDF).
+function vePront(id) {
+    const v = VE.find(x => x.id == id);
+    if (!v) return;
+    regExp('PDF', 'Prontuário do veículo ' + (vePlaca(v.placa) || v.tombo || '#' + v.id));
+    const u = location.origin + '/img/',
+        n = new Date(),
+        lin = (l, x, c = '') => `<tr class="${c}"><th>${l}</th><td>${esc(x ?? '')}</td></tr>`;
+    const f = document.createElement('iframe');
+    f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    document.body.appendChild(f);
+    const w = f.contentWindow;
+    w.document.open();
+    w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Prontuário ${esc(vePlaca(v.placa) || v.tombo || 'veículo ' + v.id)}</title><style>
+@page{size:A4 landscape;margin:8mm 10mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{margin:0;background:#fff}body{font-family:Arial,Helvetica,sans-serif;color:#000}
+.fl{width:277mm;height:193mm;display:flex;flex-direction:column}
+.cb{display:flex;align-items:center;border-bottom:1.2mm solid #000;padding-bottom:2mm}.cb img{height:14mm}.cb h1{flex:1;text-align:right;font-size:18pt;letter-spacing:1.5pt;margin:0}
+.tp{display:flex;gap:4mm;margin-top:4mm;height:40mm}.cx{border:.8mm solid #000;display:flex;flex-direction:column;justify-content:center;text-align:center}
+.cx small{font-size:9pt;font-weight:bold;letter-spacing:.6pt}.cx b{font-size:46pt;line-height:1.05}
+.od{width:40mm}.og{width:62mm}.og b{font-size:${(v.orgao || '').length > 6 ? 26 : 46}pt;word-break:break-word}
+.pl{flex:1;border:1.4mm solid #000;border-radius:3.5mm;overflow:hidden;justify-content:flex-start}.pl small{background:#000;color:#fff;letter-spacing:3pt;padding:1.2mm 0}.pl b{flex:1;display:flex;align-items:center;justify-content:center;font-size:${vePlaca(v.placa).length > 8 ? 54 : 66}pt;letter-spacing:2pt;white-space:nowrap}
+.md{display:flex;gap:4mm;margin-top:4mm;flex:1;min-height:0}
+table{border-collapse:collapse;width:100%;height:100%}th,td{border:.4mm solid #000;padding:0 3mm;height:9.4mm;font-size:14pt;text-align:left;vertical-align:middle}
+th{width:30%;background:#e6e6e6;font-size:10pt;letter-spacing:.3pt}td{font-weight:bold}.dt{flex:1}
+tr.ob td{height:16mm;vertical-align:top;padding-top:2mm;font-size:12pt;white-space:pre-wrap}
+.dc{width:78mm;border:.6mm solid #000;display:flex;flex-direction:column}.dc h2{margin:0;font-size:10pt;letter-spacing:.6pt;text-align:center;background:#e6e6e6;border-bottom:.4mm solid #000;padding:2mm 0}
+.dc ul{list-style:none;margin:0;padding:1mm 4mm;flex:1;display:flex;flex-direction:column;justify-content:space-around}.dc li{display:flex;align-items:center;gap:3mm;font-size:12.5pt;font-weight:bold}
+.dc i{width:7mm;height:7mm;border:.5mm solid #000;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:14pt;flex:none}
+.rd{display:flex;align-items:center;margin-top:2.5mm}.rd img{height:8mm}.rd span{flex:1;text-align:right;font-size:7.5pt;color:#555}
+</style></head><body><div class="fl">
+<div class="cb"><img src="${u}prontuario-cabecalho.png" alt="Governo do Amazonas"><h1>PRONTUÁRIO DO VEÍCULO</h1></div>
+<div class="tp"><div class="cx od"><small>Nº DE ORDEM</small><b>${esc(v.ordem ?? '')}</b></div><div class="cx og"><small>ÓRGÃO</small><b>${esc(v.orgao || '')}</b></div><div class="cx pl"><small>PLACA</small><b>${esc(vePlaca(v.placa))}</b></div></div>
+<div class="md"><div class="dt"><table>${lin('TOMBO', v.tombo)}${lin('TIPO', v.tipo)}${lin('MODELO', v.modelo)}${lin('ANO', v.ano)}${lin('CHASSI', v.chassi)}${lin('RENAVAM', v.renavam)}${lin('ÚLTIMO LICENCIAMENTO', v.ultimo_licenciamento)}${lin('DESTINAÇÃO', v.destinacao)}${lin('PROCESSO', v.processo_numero)}${lin('OBSERVAÇÕES', v.obs, 'ob')}</table></div>
+<div class="dc"><h2>DOCUMENTOS DO VEÍCULO</h2><ul>${VE_DOCS.map(([d, t]) => `<li><i>${veTemDoc(v, d) ? 'X' : ''}</i>${esc(t)}</li>`).join('')}</ul></div></div>
+<div class="rd"><img src="${u}prontuario-rodape.png" alt="Secretaria de Administração e Gestão"><span>Emitido em ${fmt(TS())} às ${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')} pelo Hub Patrimonial</span></div>
+</div></body></html>`);
+    w.document.close();
+    // Espera as imagens carregarem antes de abrir a impressão
+    const imgs = [...w.document.images].map(i => (i.complete ? null : new Promise(ok => (i.onload = i.onerror = ok))));
+    Promise.all(imgs).then(() =>
+        setTimeout(() => {
+            w.focus();
+            w.print();
+            setTimeout(() => f.remove(), 3000);
+        }, 200)
+    );
+}
+
 // Importação da planilha de veículos (administrador). As colunas são reconhecidas pelo nome do cabeçalho, e cada ajuste
 // aparece na prévia antes de gravar. O servidor valida de novo e ignora os veículos que já estão no Hub.
 let VEI = null;
@@ -790,7 +972,7 @@ function veImp() {
     VEI = null;
     $('#dd').innerHTML =
         `<h2><span>Importar veículos</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2>
-            <div class="fm"><label class="w">Planilha (.xlsx)<input type="file" id="vi_f" accept=".xlsx,.xls" onchange="veImpLer()"></label><div class="w ib" id="vi_pv">A primeira aba deve ter um cabeçalho com as colunas UNIDADE (ou ÓRGÃO), PROCESSO, PLACA, TOMBO, TIPO, MODELO, ANO, CHASSI, RENAVAM, ÚLTIMO LICENCIAMENTO e DESTINAÇÃO, como na planilha de controle do depósito. Colunas SITUAÇÃO DOCUMENTAL e OBSERVAÇÕES também são lidas, se existirem. Nada é gravado antes de você conferir a prévia.</div>
+            <div class="fm"><label class="w">Planilha (.xlsx)<input type="file" id="vi_f" accept=".xlsx,.xls" onchange="veImpLer()"></label><div class="w ib" id="vi_pv">A primeira aba deve ter um cabeçalho com as colunas # (nº de ordem), UNIDADE (ou ÓRGÃO), PROCESSO, PLACA, TOMBO, TIPO, MODELO, ANO, CHASSI, RENAVAM, ÚLTIMO LICENCIAMENTO e DESTINAÇÃO, como na planilha de controle do depósito. Colunas SITUAÇÃO DOCUMENTAL e OBSERVAÇÕES também são lidas, se existirem. Nada é gravado antes de você conferir a prévia.</div>
             </div>
             <div class="ac"><button class="btn p" id="vi_go" disabled onclick="veImpGo()">${ic('up', 15)} Importar</button><button class="btn" onclick="$('#dd').close()">Cancelar</button></div>`;
     if (!$('#dd').open) $('#dd').showModal();
@@ -807,6 +989,10 @@ async function veImpLer() {
         const h = m[hi].map(nh),
             ix = {};
         Object.entries(VE_IMP_COL).forEach(([c, ns]) => (ix[c] = h.findIndex(x => ns.includes(x))));
+        // Nº de ordem: coluna "#" (como na planilha do depósito), "Nº", "Nº de ordem" ou "Ordem"
+        ix.ordem = m[hi].findIndex(
+            (x, i) => String(x ?? '').trim() == '#' || ['n', 'no', 'ordem', 'nordem', 'numerodeordem'].includes(h[i])
+        );
         const g = (r, c) => (ix[c] < 0 ? '' : r[ix[c]]),
             t = (r, c) => {
                 const v = String(g(r, c) ?? '')
@@ -836,6 +1022,12 @@ async function veImpLer() {
                 .filter(([r]) => ['placa', 'modelo', 'chassi', 'renavam'].some(c => t(r, c)))
                 .map(([r, n]) => {
                     const x = { linha: n, erros: [], ajustes: [], avisos: [], obs: t(r, 'obs') };
+                    const od = t(r, 'ordem');
+                    x.ordem = od === '' ? '' : Number(od);
+                    if (od !== '' && !(Number.isInteger(x.ordem) && x.ordem >= 1 && x.ordem <= 99999)) {
+                        x.erros.push(`nº de ordem "${od}" inválido`);
+                        x.ordem = '';
+                    }
                     x.orgao = t(r, 'orgao');
                     x.processo_numero = t(r, 'processo');
                     if (x.processo_numero.includes('_')) {
@@ -894,7 +1086,11 @@ async function veImpLer() {
                     if (rep) x.erros.push(`mesmo identificador da linha ${vistos[rep]}`);
                     ks.forEach(k => (vistos[k] = vistos[k] || n));
                     const ja = ks.map(k => existe[k]).find(Boolean);
-                    if (ja) x.ja = ja.id;
+                    if (ja) {
+                        x.ja = ja.id;
+                        // Já cadastrado: só o nº de ordem pode ser atualizado
+                        if (x.ordem !== '' && ja.ordem != x.ordem) x.nova_ordem = 1;
+                    }
                     x.cadastrado = !!(x.processo_numero && D.some(p => nh(p.numero) == nh(x.processo_numero)));
                     return x;
                 }),
@@ -916,6 +1112,7 @@ function veImpPrev() {
         av = l.filter(x => x.avisos.length),
         ja = l.filter(x => x.ja),
         nv = l.filter(x => !x.ja),
+        no = ja.filter(x => x.nova_ordem).length,
         cp = nv.filter(x => x.cadastrado).length,
         np = nv.filter(x => x.processo_numero && !x.cadastrado).length,
         sp = nv.filter(x => !x.processo_numero).length,
@@ -928,6 +1125,9 @@ function veImpPrev() {
         `<div class="pl" style="max-height:170px;margin-top:6px;font-size:12.5px">${xs.map(x => `<div style="padding:4px 0;border-bottom:1px solid var(--bd)"><b>Linha ${x.linha}</b> (${esc(vePlaca(x.placa) || x.modelo)}): ${esc(f(x).join('; '))}</div>`).join('')}</div>`;
     $('#vi_pv').innerHTML =
         `<b>${l.length} veículo(s) na planilha</b>: ${nv.length} novo(s)${ja.length ? ` e ${ja.length} já cadastrado(s) no Hub, que serão ignorados` : ''}.` +
+        (no
+            ? `<br><b>${no} veículo(s) já cadastrado(s) terão o nº de ordem atualizado</b> conforme a coluna # da planilha (os demais dados deles não mudam).`
+            : '') +
         (nv.length
             ? `<br><small>Órgão: ${org || '—'}<br>Processo: ${cp} com processo já cadastrado no Hub (vínculo automático), ${np} com processo ainda não cadastrado (o número fica gravado e o vínculo acontece quando o processo for cadastrado)${sp ? `, ${sp} sem processo` : ''}.<br>Tipo na planilha → tipo no Hub: ${Object.entries(
                   VEI.tipos
@@ -945,21 +1145,34 @@ function veImpPrev() {
             ? `<div style="margin-top:12px"><b>${av.length} linha(s) com aviso</b> (são importadas assim mesmo; vale conferir no documento do veículo):${lista(av, x => x.avisos)}</div>`
             : '') +
         `<p class="nt" style="margin:12px 0 0">RENAVAM com menos de 11 números recebe zeros à esquerda. Todos entram como "no depósito", sem data de entrada${l.some(x => x.situacao_doc) ? '' : ' e com a situação documental "Não informada"'}. Os já cadastrados (mesma placa, chassi, RENAVAM ou tombo) são ignorados, então importar o mesmo arquivo de novo não duplica.</p>`;
-    $('#vi_go').disabled = !!er.length || !nv.length;
-    $('#vi_go').innerHTML = `${ic('up', 15)} Importar ${nv.length} veículo(s)`;
+    $('#vi_go').disabled = !!er.length || !(nv.length || no);
+    $('#vi_go').innerHTML = nv.length
+        ? `${ic('up', 15)} Importar ${nv.length} veículo(s)`
+        : `${ic('up', 15)} Atualizar nº de ordem de ${no} veículo(s)`;
 }
 // Importação: envia os veículos novos ao servidor
 async function veImpGo() {
-    const nv = VEI && VEI.linhas.filter(x => !x.ja);
+    const nv = VEI && VEI.linhas.filter(x => !x.ja),
+        ordens = VEI ? VEI.linhas.filter(x => x.nova_ordem).map(x => ({ id: x.ja, ordem: x.ordem })) : [];
     if (
         !nv ||
-        !nv.length ||
-        !(await confirma(`${nv.length} veículo(s) serão gravados no Hub.`, 'Importar veículos', 'Importar'))
+        !(nv.length || ordens.length) ||
+        !(await confirma(
+            [
+                nv.length ? `${nv.length} veículo(s) serão gravados no Hub.` : '',
+                ordens.length ? `${ordens.length} veículo(s) já cadastrado(s) terão o nº de ordem atualizado.` : '',
+            ]
+                .filter(Boolean)
+                .join(' '),
+            'Importar veículos',
+            'Importar'
+        ))
     )
         return;
     const itens = nv.map(x => {
         const o = { linha: x.linha };
         [
+            'ordem',
             'orgao',
             'processo_numero',
             'placa',
@@ -977,14 +1190,15 @@ async function veImpGo() {
         return o;
     });
     umaVez(async () => {
-        const j = await api({ op: 'importar', itens }, '/api/veiculos');
+        const j = await api({ op: 'importar', itens, ordens }, '/api/veiculos');
         $('#dd').close();
         VEI = null;
         await veLoad();
         draw();
         aviso(
             `${j.importados} veículo(s) importado(s).` +
-                (j.ignorados ? ` ${j.ignorados} já estavam no Hub e foram ignorados.` : ''),
+                (j.ignorados ? ` ${j.ignorados} já estavam no Hub e foram ignorados.` : '') +
+                (j.ordens ? ` Nº de ordem atualizado em ${j.ordens} veículo(s).` : ''),
             'Importação concluída',
             'ok'
         );

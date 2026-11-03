@@ -1,5 +1,5 @@
-// API de veículos (/api/veiculos): veículos no depósito, vínculo com processo, fotos por parte do veículo
-// e Lista de Verificação de Veículo (vistoria). Qualquer usuário cadastra e altera; só o administrador exclui.
+// API de veículos (/api/veiculos): veículos no depósito, vínculo com processo, fotos por parte do veículo,
+// documentos do veículo (CRLV, DUT…) com anexos e Lista de Verificação de Veículo (vistoria). Qualquer usuário cadastra e altera; só o administrador exclui.
 
 const crypto = require('crypto');
 const {
@@ -13,11 +13,23 @@ const {
     semSessao,
     tratarErro,
 } = require('../lib/comum');
-const { MAXIMO, blobOk, blob, linkEnvio, conferirEnvio, linkLeitura } = require('../lib/arquivos');
+const { ARQUIVOS, MAXIMO, blobOk, blob, linkEnvio, conferirEnvio, linkLeitura } = require('../lib/arquivos');
 
 const SITUACOES_DOC = ['Regularizado', 'Em regularização', 'Não regularizado'];
 const FOTOS = { 'image/jpeg': ['jpg', 'jpeg'], 'image/png': ['png'] };
 const FOTOS_POR_VEICULO = 40;
+// Documentos do veículo (v7.6): o código fica gravado; o nome aparece no log. A tela usa a mesma lista (VE_DOCS em js/veiculos.js).
+const DOCUMENTOS = {
+    crlv: 'CRLV',
+    dut: 'DUT',
+    ajuri: 'Relatório do AJURI',
+    detran: 'Ficha do DETRAN',
+    dnit: 'DNIT',
+    immu: 'IMMU',
+    prf: 'PRF',
+    sefaz: 'SEFAZ',
+};
+const ANEXOS_POR_DOCUMENTO = 5;
 // Lista de Verificação: 26 itens (S, N, I ou A), 5 vistas do desenho com avarias (A, R, Q ou F)
 const ITENS = 26,
     MARCAS_ITEM = ['', 'S', 'N', 'I', 'A'],
@@ -57,9 +69,18 @@ function ano(v, nome) {
     return n;
 }
 
+// Nº de ordem na planilha do depósito: opcional, número inteiro positivo
+function ordem(v) {
+    if (v === '' || v == null) return null;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 1 || n > 99999) throw new Erro('Nº de ordem inválido: use um número inteiro de 1 a 99999');
+    return n;
+}
+
 // Confere e limpa um veículo recebido
 function validar(item) {
     const v = {
+        ordem: ordem(item.ordem),
         orgao: txt(item.orgao, 200, 'Órgão'),
         processo: txt(item.processo_numero, 100, 'Processo').replace(/\s+/g, ' '),
         placa: soLetrasNumeros(item.placa),
@@ -130,11 +151,16 @@ function validarVistoria(x) {
 const consultar = (
     sql,
     id
-) => sql`select v.id, v.orgao, p.id as processo_id, v.processo as processo_numero, p.data->>'tipo' as processo_tipo, v.placa, v.tombo, v.tipo, v.modelo, v.ano, v.chassi, v.renavam, v.ultimo_licenciamento, v.destinacao, v.situacao_doc, v.obs,
-    to_char(v.entrada, 'YYYY-MM-DD') as entrada, to_char(v.saida, 'YYYY-MM-DD') as saida, v.vistoria, c.nome as criado_por_nome, to_char(v.atualizado_em at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as atualizado_em,
+) => sql`select v.id, v.ordem, v.orgao, p.id as processo_id, v.processo as processo_numero, p.data->>'tipo' as processo_tipo, v.placa, v.tombo, v.tipo, v.modelo, v.ano, v.chassi, v.renavam, v.ultimo_licenciamento, v.destinacao, v.situacao_doc, v.obs,
+    to_char(v.entrada, 'YYYY-MM-DD') as entrada, to_char(v.saida, 'YYYY-MM-DD') as saida, v.vistoria, v.documentos, c.nome as criado_por_nome, to_char(v.atualizado_em at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as atualizado_em,
     (select count(*)::int
         from veiculo_fotos f
-        where f.veiculo_id = v.id and f.confirmado) as fotos
+        where f.veiculo_id = v.id and f.confirmado) as fotos,
+    (select coalesce(jsonb_object_agg(a.documento, a.n), '{}')
+        from (select documento, count(*)::int as n
+            from veiculo_documentos
+            where veiculo_id = v.id and confirmado
+            group by documento) a) as anexos
   from veiculos v
     left join lateral (select id, data
         from processos
@@ -193,13 +219,13 @@ module.exports = async (req, res) => {
             let novo = id;
             if (id) {
                 await veiculo(id);
-                await sql`update veiculos set orgao = ${v.orgao}, processo = ${v.processo}, placa = ${v.placa}, tombo = ${v.tombo}, tipo = ${v.tipo}, modelo = ${v.modelo}, ano = ${v.ano}, chassi = ${v.chassi}, renavam = ${v.renavam},
+                await sql`update veiculos set ordem = ${v.ordem}, orgao = ${v.orgao}, processo = ${v.processo}, placa = ${v.placa}, tombo = ${v.tombo}, tipo = ${v.tipo}, modelo = ${v.modelo}, ano = ${v.ano}, chassi = ${v.chassi}, renavam = ${v.renavam},
           ultimo_licenciamento = ${v.ultimo_licenciamento}, destinacao = ${v.destinacao}, situacao_doc = ${v.situacao_doc}, entrada = ${v.entrada || null}, saida = ${v.saida || null}, obs = ${v.obs}, atualizado_em = now()
                     where id = ${id}`;
             } else {
                 novo = (
-                    await sql`insert into veiculos(orgao, processo, placa, tombo, tipo, modelo, ano, chassi, renavam, ultimo_licenciamento, destinacao, situacao_doc, entrada, saida, obs, criado_por)
-                        values (${v.orgao}, ${v.processo}, ${v.placa}, ${v.tombo}, ${v.tipo}, ${v.modelo}, ${v.ano}, ${v.chassi}, ${v.renavam}, ${v.ultimo_licenciamento}, ${v.destinacao}, ${v.situacao_doc}, ${v.entrada || null}, ${v.saida || null}, ${v.obs}, ${me.id})
+                    await sql`insert into veiculos(ordem, orgao, processo, placa, tombo, tipo, modelo, ano, chassi, renavam, ultimo_licenciamento, destinacao, situacao_doc, entrada, saida, obs, criado_por)
+                        values (${v.ordem}, ${v.orgao}, ${v.processo}, ${v.placa}, ${v.tombo}, ${v.tipo}, ${v.modelo}, ${v.ano}, ${v.chassi}, ${v.renavam}, ${v.ultimo_licenciamento}, ${v.destinacao}, ${v.situacao_doc}, ${v.entrada || null}, ${v.saida || null}, ${v.obs}, ${me.id})
                         returning id`
                 )[0].id;
             }
@@ -212,7 +238,7 @@ module.exports = async (req, res) => {
         if (b.op === 'importar') {
             if (!adm) throw new Erro('Somente o administrador pode importar veículos', 403);
             const itens = Array.isArray(b.itens) ? b.itens : [];
-            if (!itens.length) throw new Erro('Nenhuma linha para importar');
+            if (!itens.length && !(Array.isArray(b.ordens) && b.ordens.length)) throw new Erro('Nenhuma linha para importar');
             if (itens.length > 2000) throw new Erro('Importe no máximo 2.000 veículos por vez');
             const l = itens.map((x, i) => {
                 try {
@@ -242,18 +268,29 @@ module.exports = async (req, res) => {
             });
             if (novos.length) {
                 const col = f => novos.map(f);
-                await sql`insert into veiculos(orgao, processo, placa, tombo, tipo, modelo, ano, chassi, renavam, ultimo_licenciamento, destinacao, situacao_doc, entrada, saida, obs, criado_por)
+                await sql`insert into veiculos(ordem, orgao, processo, placa, tombo, tipo, modelo, ano, chassi, renavam, ultimo_licenciamento, destinacao, situacao_doc, entrada, saida, obs, criado_por)
                     select x.*, ${me.id}::int
-                        from unnest(${col(v => v.orgao)}::text[], ${col(v => v.processo)}::text[], ${col(v => v.placa)}::text[], ${col(v => v.tombo)}::text[], ${col(v => v.tipo)}::text[],
+                        from unnest(${col(v => v.ordem)}::int[], ${col(v => v.orgao)}::text[], ${col(v => v.processo)}::text[], ${col(v => v.placa)}::text[], ${col(v => v.tombo)}::text[], ${col(v => v.tipo)}::text[],
               ${col(v => v.modelo)}::text[], ${col(v => v.ano)}::text[], ${col(v => v.chassi)}::text[], ${col(v => v.renavam)}::text[], ${col(v => v.ultimo_licenciamento)}::int[],
               ${col(v => v.destinacao)}::text[], ${col(v => v.situacao_doc)}::text[], ${col(v => v.entrada || null)}::date[], ${col(v => v.saida || null)}::date[], ${col(v => v.obs)}::text[]) as x`;
+            }
+            // Veículos que já estão no Hub: só o nº de ordem é atualizado, quando a planilha traz um número diferente (v7.6)
+            const ords = (Array.isArray(b.ordens) ? b.ordens : []).slice(0, 2000).map(x => ({ id: +x.id || 0, ordem: ordem(x.ordem) }));
+            let atualizados = 0;
+            if (ords.length) {
+                const r = await sql`update veiculos v set ordem = x.ordem, atualizado_em = now()
+                    from unnest(${ords.map(x => x.id)}::int[], ${ords.map(x => x.ordem)}::int[]) as x(id, ordem)
+                    where v.id = x.id and x.ordem is not null and v.ordem is distinct from x.ordem
+                    returning v.id`;
+                atualizados = r.length;
             }
             await registrar(
                 me,
                 'veiculos_importados',
-                `${novos.length} importado(s), ${l.length - novos.length} já cadastrado(s) ignorado(s)`
+                `${novos.length} importado(s), ${l.length - novos.length} já cadastrado(s) ignorado(s)` +
+                    (atualizados ? `, nº de ordem atualizado em ${atualizados}` : '')
             );
-            return res.json({ importados: novos.length, ignorados: l.length - novos.length });
+            return res.json({ importados: novos.length, ignorados: l.length - novos.length, ordens: atualizados });
         }
 
         if (b.op === 'vistoria') {
@@ -269,10 +306,16 @@ module.exports = async (req, res) => {
         if (b.op === 'del') {
             if (!adm) throw new Erro('Somente o administrador pode excluir veículos', 403);
             const v = await veiculo(b.id);
-            const arq = await sql`select caminho from veiculo_fotos where veiculo_id = ${v.id}`;
-            if (arq.length) await blob().del(arq.map(x => x.caminho)); // apaga as fotos antes do registro, para não deixar arquivo sem dono
+            const arq = await sql`select caminho from veiculo_fotos where veiculo_id = ${v.id}`,
+                docs = await sql`select caminho from veiculo_documentos where veiculo_id = ${v.id}`,
+                tudo = [...arq, ...docs].map(x => x.caminho);
+            if (tudo.length) await blob().del(tudo); // apaga fotos e documentos antes do registro, para não deixar arquivo sem dono
             await sql`delete from veiculos where id = ${v.id}`;
-            await registrar(me, 'veiculo_excluido', rotulo(v) + (arq.length ? ` com ${arq.length} foto(s)` : ''));
+            await registrar(
+                me,
+                'veiculo_excluido',
+                rotulo(v) + (arq.length ? ` com ${arq.length} foto(s)` : '') + (docs.length ? ` e ${docs.length} documento(s) anexado(s)` : '')
+            );
             return res.json({ ok: 1 });
         }
 
@@ -357,6 +400,103 @@ module.exports = async (req, res) => {
             await blob().del(f.caminho);
             await sql`delete from veiculo_fotos where id = ${f.id}`;
             await registrar(me, 'foto_veiculo_removida', `${f.parte} do veículo #${f.veiculo_id}`);
+            return res.json({ ok: 1 });
+        }
+
+        // Documentos do veículo (v7.6). "Possui" fica marcado em veiculos.documentos; cada documento aceita até 5 anexos
+        // (PDF, JPG ou PNG). Anexar um arquivo marca o documento como possuído; para desmarcar, os anexos precisam ser removidos antes.
+        const documento = d => {
+            if (!DOCUMENTOS[d]) throw new Erro('Documento inválido');
+            return d;
+        };
+
+        if (b.op === 'doc_marcar') {
+            const v = await veiculo(b.id),
+                d = documento(b.doc),
+                tem = !!b.tem;
+            if (!tem && (v.anexos || {})[d])
+                throw new Erro(`Remova os arquivos anexados ao ${DOCUMENTOS[d]} antes de desmarcar o documento`);
+            await sql`update veiculos set documentos = case when ${tem} then documentos || jsonb_build_object(${d}::text, true) else documentos - ${d}::text end, atualizado_em = now()
+                where id = ${v.id}`;
+            await registrar(me, tem ? 'documento_veiculo_marcado' : 'documento_veiculo_desmarcado', `${DOCUMENTOS[d]} no veículo ${rotulo(v)}`);
+            return res.json({ ok: 1 });
+        }
+
+        // Anexos dos documentos, com link de visualização válido por 15 minutos
+        if (b.op === 'docs') {
+            const v = await veiculo(b.id);
+            const l =
+                await sql`select id, documento, nome, tipo, tamanho, caminho, enviado_por, enviado_por_nome, to_char(criado_em at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as enviado_em
+                    from veiculo_documentos
+                    where veiculo_id = ${v.id} and confirmado
+                    order by id`;
+            const B = l.length && blobOk() ? blob() : null;
+            const docs = [];
+            for (const x of l) {
+                const { caminho, ...y } = x;
+                docs.push({ ...y, url: B ? await linkLeitura(B, caminho, 15) : '' });
+            }
+            return res.json({ docs });
+        }
+
+        // Envio em 3 passos, como nas fotos: preparar (link de envio), enviar direto ao Blob, confirmar (conferência do conteúdo)
+        if (b.op === 'doc_preparar') {
+            const v = await veiculo(b.id),
+                d = documento(b.doc);
+            const nome = txt(b.nome, 200, 'Nome do arquivo').replace(/[\u0000-\u001f]/g, ''),
+                tipo = String(b.tipo || ''),
+                tamanho = +b.tamanho || 0;
+            const ext = (/\.([a-z0-9]+)$/i.exec(nome) || [])[1]?.toLowerCase();
+            if (!ARQUIVOS[tipo] || !ARQUIVOS[tipo].includes(ext)) throw new Erro('Envie o documento em PDF, JPG ou PNG');
+            if (tamanho < 1 || tamanho > MAXIMO) throw new Erro('O arquivo deve ter no máximo 10 MB');
+            const n = await sql`select count(*)::int as n
+                    from veiculo_documentos
+                    where veiculo_id = ${v.id} and documento = ${d} and (confirmado or criado_em > now() - interval '1 hour')`;
+            if (n[0].n >= ANEXOS_POR_DOCUMENTO)
+                throw new Erro(`Limite de ${ANEXOS_POR_DOCUMENTO} arquivos por documento. Remova um arquivo antes de enviar outro.`);
+            const B = blob();
+            // Envios abandonados há mais de 1 hora: remove o arquivo (se chegou a ser enviado) e o registro
+            const velhos = await sql`delete
+                    from veiculo_documentos
+                    where not confirmado and criado_em < now() - interval '1 hour'
+                    returning caminho`;
+            if (velhos.length) await B.del(velhos.map(x => x.caminho)).catch(() => {});
+            const caminho = `veiculos/${v.id}/documentos/${d}-${crypto.randomBytes(12).toString('hex')}.${ext === 'jpeg' ? 'jpg' : ext}`;
+            const envio = await linkEnvio(B, caminho, tipo);
+            const a = (
+                await sql`insert into veiculo_documentos(veiculo_id, documento, nome, tipo, tamanho, caminho, enviado_por, enviado_por_nome)
+                    values (${v.id}, ${d}, ${nome}, ${tipo}, ${tamanho}, ${caminho}, ${me.id}, ${me.nome})
+                    returning id`
+            )[0];
+            return res.json({ anexo_id: a.id, url: envio.url, headers: envio.headers });
+        }
+
+        if (b.op === 'doc_confirmar') {
+            const a = (await sql`select * from veiculo_documentos where id = ${+b.anexo_id || 0}`)[0];
+            if (!a || a.confirmado || a.enviado_por !== me.id) throw new Erro('Envio não encontrado', 404);
+            const B = blob(),
+                r = await conferirEnvio(B, a.caminho, a.tipo);
+            if (r.erro) {
+                await B.del(a.caminho).catch(() => {});
+                await sql`delete from veiculo_documentos where id = ${a.id}`;
+                throw new Erro(r.erro);
+            }
+            await sql`update veiculo_documentos set confirmado = true, tamanho = ${r.tamanho} where id = ${a.id}`;
+            // Documento anexado = documento que o veículo possui
+            await sql`update veiculos set documentos = documentos || jsonb_build_object(${a.documento}::text, true), atualizado_em = now()
+                where id = ${a.veiculo_id}`;
+            await registrar(me, 'documento_veiculo_enviado', `${DOCUMENTOS[a.documento] || a.documento} (${a.nome}) no veículo #${a.veiculo_id}`);
+            return res.json({ ok: 1 });
+        }
+
+        if (b.op === 'doc_remover') {
+            const a = (await sql`select * from veiculo_documentos where id = ${+b.anexo_id || 0} and confirmado`)[0];
+            if (!a) throw new Erro('Arquivo não encontrado', 404);
+            if (!adm && a.enviado_por !== me.id)
+                throw new Erro('Somente quem enviou o arquivo ou o administrador pode removê-lo', 403);
+            await blob().del(a.caminho);
+            await sql`delete from veiculo_documentos where id = ${a.id}`;
+            await registrar(me, 'documento_veiculo_removido', `${DOCUMENTOS[a.documento] || a.documento} (${a.nome}) do veículo #${a.veiculo_id}`);
             return res.json({ ok: 1 });
         }
 

@@ -27,7 +27,7 @@ Os arquivos são carregados pelo `index.html` nesta ordem, e cada um pode usar o
 | `js/atendimentos.js` | Gestão de Atendimentos: tela, filtros, detalhe com histórico, formulário e importação de planilha |
 | `js/relatorios.js` | Tela Gerenciais: aba Indicadores do período (quadros por mês, trimestre, ano ou intervalo, comparação com o período anterior e escolha do que entra no PDF e no Excel) e aba Relatórios de processos |
 | `js/calendario.js` | Calendário: reuniões, treinamentos, outros eventos, férias, agenda do servidor, feriados e aniversários, anexos e exportação por tipo |
-| `js/veiculos.js` | Gestão de Veículos: tela Veículos (indicadores, pendências, lista), detalhe com fotos, formulário, Lista de Verificação e a impressão dela, importação da planilha do depósito e a tela Processos com veículos |
+| `js/veiculos.js` | Gestão de Veículos: tela Veículos (indicadores, pendências, lista), detalhe em abas (informações, documentos, fotos, Lista de Verificação), prontuário em A4 paisagem (`vePront`), formulário, Lista de Verificação e a impressão dela, importação da planilha do depósito e a tela Processos com veículos |
 | `js/inicio.js` | Tela Início, com os atalhos, a agenda da semana e os itens do usuário |
 | `js/usuarios.js` | Telas Usuários e Log de atividades (somente administrador) |
 | `js/app.js` | Último a ser carregado: desenha a primeira tela, retira a tela de abertura (`body.ini`) depois do primeiro carregamento e liga a atualização automática |
@@ -40,7 +40,7 @@ Os arquivos são carregados pelo `index.html` nesta ordem, e cada um pode usar o
 | `api/data.js` | Login, sessão, processos, listas de cadastro, usuários e log |
 | `api/atendimentos.js` | Atendimentos e o histórico deles, incluindo a importação |
 | `api/eventos.js` | Calendário, participantes, permissões por tipo de evento e anexos |
-| `api/veiculos.js` | Veículos, importação, Lista de Verificação e fotos |
+| `api/veiculos.js` | Veículos, importação, Lista de Verificação, fotos e documentos do veículo (CRLV, DUT…) |
 | `lib/arquivos.js` | Envio e leitura de arquivos no Vercel Blob privado, usado pelos anexos do calendário e pelas fotos dos veículos. Confere o conteúdo real do arquivo antes de aceitar |
 
 ### Outros arquivos
@@ -49,7 +49,7 @@ Os arquivos são carregados pelo `index.html` nesta ordem, e cada um pode usar o
 |---|---|
 | `index.html` | Estrutura da página e todo o visual (CSS: cores, tamanhos, versão para celular) |
 | `db/migracao_00X_*.sql` | Scripts que criam ou alteram tabelas no banco, em ordem |
-| `img/` | Imagens da impressão da Lista de Verificação: brasão do cabeçalho, desenho do veículo e rodapé da SEAD |
+| `img/` | Imagens da impressão da Lista de Verificação (brasão do cabeçalho, desenho do veículo e rodapé da SEAD) e do prontuário do veículo (`prontuario-*.png`) |
 | `seed.json` | Dados de exemplo usados só para carregar um banco vazio |
 | `xlsx.min.js` | Biblioteca pronta que lê e gera planilhas Excel. Não deve ser editada |
 | `.prettierrc.json` | Regras de formatação do código (veja a seção 7) |
@@ -124,6 +124,7 @@ Os prefixos ajudam a saber de qual módulo é cada função: `at` é de atendime
 | Prazos de Atenção e Crítico, sugestões de tipo e destinação de veículo | Pela própria tela, em Administração > Listas e Parâmetros. Não precisa mexer no código |
 | Itens da Lista de Verificação de Veículo | `js/veiculos.js` (`VE_ITENS`) e `api/veiculos.js` (`ITENS`, a quantidade) |
 | Situação documental dos veículos | `js/veiculos.js` (`VE_SIT`) e `api/veiculos.js` (`SITUACOES_DOC`) |
+| Documentos do veículo (CRLV, DUT, Relatório do AJURI…) | `js/veiculos.js` (`VE_DOCS`) e `api/veiculos.js` (`DOCUMENTOS`), com os mesmos códigos nos dois |
 | Mensagens, confirmações e aviso de sucesso | `js/base.js`: `aviso` (só informa), `confirma` (pede confirmação e devolve verdadeiro ou falso), `pergunta` (pede um texto) e `toast` (aviso de sucesso no canto). Não use `alert`, `confirm` ou `prompt` do navegador |
 | Tempo de inatividade antes de encerrar a sessão | `js/base.js` (`INATIVO_MIN` e `AVISO_MIN`) |
 | Tentativas de login antes do bloqueio | `api/data.js` (`MAX_FALHAS` por login e `MAX_FALHAS_IP` por IP) |
