@@ -1,7 +1,7 @@
 // API do calendário (/api/eventos): eventos, participantes, permissões por tipo e anexos (fotos, ATA, lista de presença).
 
 const crypto = require('crypto');
-const { Erro, ehData, txt, iniciar, usuarioDaSessao, semSessao, tratarErro } = require('../lib/comum');
+const { Erro, ehData, txt, iniciar, usuarioDaSessao, exigeTroca, semSessao, tratarErro } = require('../lib/comum');
 const {
     ARQUIVOS,
     MAXIMO,
@@ -198,6 +198,7 @@ module.exports = async (req, res) => {
         const { sql, b, registrar } = ctx;
         const me = await usuarioDaSessao(sql, req);
         if (!me) return semSessao(sql, res);
+        if (exigeTroca(me, b, res)) return;
         const evento = async id => {
             const e = (await consultar(sql, +id || 0))[0];
             if (!+id || !e) throw new Erro('Evento não encontrado', 404);

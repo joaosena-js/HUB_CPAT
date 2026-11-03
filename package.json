@@ -1,5 +1,5 @@
 {
- "name": "dbm-processos",
+ "name": "hub-patrimonial",
  "private": true,
  "dependencies": {
   "@neondatabase/serverless": "^0.10.4",

@@ -14,6 +14,8 @@ const {
     encerrar,
     iniciar,
     usuarioDaSessao,
+    exigeTroca,
+    senhaFraca,
     semSessao,
     tratarErro,
 } = require('../lib/comum');
@@ -46,6 +48,8 @@ const DATAS = ['tram', 'datadoc', 'concl', 'mov'];
 const LISTAS = ['status', 'resp', 'orgaos', 'motivos', 'assuntos'],
     LISTAS_OPCIONAIS = ['assuntos_at', 'tipos_veiculo', 'destinacoes'];
 const MAX_FALHAS = 5;
+// Limite por IP (vários logins diferentes a partir do mesmo computador). Fica alto porque um órgão inteiro pode sair na internet pelo mesmo IP.
+const MAX_FALHAS_IP = 30;
 // Nº do processo comparado sem pontos, barras, traços e espaços: "001.2026/12" e "0012026 12" são o mesmo processo
 const chave = n =>
     String(n || '')
@@ -114,6 +118,8 @@ function validarUsuario(b, novo) {
     if (b.senha || novo) {
         if (String(b.senha || '').length < 8 || String(b.senha).length > 200)
             throw new Erro('A senha deve ter pelo menos 8 caracteres');
+        const fraca = senhaFraca(b.senha, u.login || b.login);
+        if (fraca) throw new Erro(fraca);
         u.senha = String(b.senha);
     }
     return u;
@@ -124,7 +130,7 @@ module.exports = async (req, res) => {
     try {
         const ctx = await iniciar(req, res);
         if (!ctx) return;
-        const { sql, b, registrar } = ctx;
+        const { sql, b, ip, registrar } = ctx;
 
         if (b.op === 'login') {
             const login = String(b.login || '')
@@ -138,12 +144,21 @@ module.exports = async (req, res) => {
                 return res
                     .status(429)
                     .json({ error: 'Muitas tentativas sem sucesso. Aguarde 15 minutos e tente novamente.' });
+            const fi = await sql`select count(*)::int n
+                    from log_atividades
+                    where acao = 'login_falha' and ip = ${ip} and criado_em > now() - interval '15 minutes'`;
+            if (fi[0].n >= MAX_FALHAS_IP)
+                return res.status(429).json({
+                    error: 'Muitas tentativas sem sucesso a partir desta rede. Aguarde 15 minutos e tente novamente.',
+                });
             const u = (
                 await sql`select id, nome, versao, senha_hash from usuarios where login = ${login} and ativo`
             )[0];
             const ok = await confere(senha, u ? u.senha_hash : HASH_FALSO);
             if (!u || !ok) {
                 await registrar(null, 'login_falha', login);
+                // Avisa o administrador (no log) quando um login fica bloqueado
+                if (f[0].n + 1 === MAX_FALHAS) await registrar(null, 'login_bloqueado', login);
                 return res.status(401).json({ error: 'Login ou senha inválidos' });
             }
             await sql`update usuarios set ultimo_acesso = now() where id = ${u.id}`;
@@ -173,11 +188,12 @@ module.exports = async (req, res) => {
 
         const me = await usuarioDaSessao(sql, req);
         if (b.op === 'logout') {
-            if (me) await registrar(me, 'logout');
+            if (me) await registrar(me, 'logout', b.motivo === 'inatividade' ? 'Por inatividade' : '');
             encerrar(res);
             return res.json({ ok: 1 });
         }
         if (!me) return semSessao(sql, res);
+        if (exigeTroca(me, b, res)) return;
         const adm = me.perfil === 'admin';
         const soAdmin = () => {
             if (!adm) throw new Erro('Seu perfil não tem permissão para esta ação', 403);
@@ -360,14 +376,19 @@ module.exports = async (req, res) => {
         if (b.op === 'minha_senha') {
             const u = (await sql`select senha_hash from usuarios where id = ${me.id}`)[0];
             if (!(await confere(String(b.atual || ''), u.senha_hash))) throw new Erro('A senha atual não confere');
-            const v = validarUsuario({ nome: me.nome, senha: b.nova }, false);
+            const v = validarUsuario({ nome: me.nome, login: me.login, senha: b.nova }, false);
             if (!v.senha) throw new Erro('Informe a nova senha');
+            if (String(b.nova) === String(b.atual)) throw new Erro('A nova senha deve ser diferente da atual');
             const r = (
-                await sql`update usuarios set senha_hash = ${await gerarHash(v.senha)}, versao = versao + 1
+                await sql`update usuarios set senha_hash = ${await gerarHash(v.senha)}, versao = versao + 1, trocar_senha = false
                     where id = ${me.id}
                     returning id, versao`
             )[0];
-            await registrar(me, 'senha_alterada', 'Pelo próprio usuário');
+            await registrar(
+                me,
+                'senha_alterada',
+                me.trocar_senha ? 'Troca da senha provisória' : 'Pelo próprio usuário'
+            );
             emitir(res, r);
             return res.json({ ok: 1 });
         }
@@ -375,7 +396,7 @@ module.exports = async (req, res) => {
         if (b.op === 'usuarios') {
             soAdmin();
             const u =
-                await sql`select id, login, nome, responsavel, perfil, ativo, to_char(ultimo_acesso at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as ultimo_acesso
+                await sql`select id, login, nome, responsavel, perfil, ativo, trocar_senha, to_char(ultimo_acesso at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as ultimo_acesso
                     from usuarios
                     order by nome`;
             return res.json({ usuarios: u });
@@ -393,7 +414,7 @@ module.exports = async (req, res) => {
                 const h = v.senha ? await gerarHash(v.senha) : null;
                 // versao + 1 encerra as sessões abertas quando a senha muda, o perfil muda ou o usuário é desativado
                 const r =
-                    await sql`update usuarios set nome = ${v.nome}, responsavel = ${v.responsavel}, perfil = ${v.perfil}, ativo = ${v.ativo}, senha_hash = coalesce(${h}::text, senha_hash), versao = versao + case when ${!!h}::boolean or perfil <> ${v.perfil} or ativo <> ${v.ativo}::boolean then 1 else 0 end
+                    await sql`update usuarios set nome = ${v.nome}, responsavel = ${v.responsavel}, perfil = ${v.perfil}, ativo = ${v.ativo}, senha_hash = coalesce(${h}::text, senha_hash), trocar_senha = case when ${!!h}::boolean and id <> ${me.id} then true else trocar_senha end, versao = versao + case when ${!!h}::boolean or perfil <> ${v.perfil} or ativo <> ${v.ativo}::boolean then 1 else 0 end
                         where id = ${id}
                         returning login`;
                 if (!r[0]) throw new Erro('Usuário não encontrado', 404);
@@ -401,8 +422,8 @@ module.exports = async (req, res) => {
             } else {
                 const ex = await sql`select 1 from usuarios where login = ${v.login}`;
                 if (ex.length) throw new Erro('Já existe um usuário com esse login');
-                await sql`insert into usuarios(login, nome, responsavel, perfil, ativo, senha_hash)
-                    values (${v.login}, ${v.nome}, ${v.responsavel}, ${v.perfil}, ${v.ativo}, ${await gerarHash(v.senha)})`;
+                await sql`insert into usuarios(login, nome, responsavel, perfil, ativo, senha_hash, trocar_senha)
+                    values (${v.login}, ${v.nome}, ${v.responsavel}, ${v.perfil}, ${v.ativo}, ${await gerarHash(v.senha)}, true)`;
                 await registrar(me, 'usuario_criado', v.login);
             }
             return res.json({ ok: 1 });
@@ -421,6 +442,13 @@ module.exports = async (req, res) => {
           and (${ate}::date is null or criado_em < ((${ate}::date + 1)::timestamp at time zone 'America/Manaus'))
         order by id desc limit 1000`;
             return res.json({ log: l });
+        }
+
+        // Exportações (Excel, PDF e backup) são geradas no navegador; aqui só ficam registradas no log
+        if (b.op === 'exportacao') {
+            const formato = ['Excel', 'PDF', 'Backup JSON'].includes(b.formato) ? b.formato : 'Outro';
+            await registrar(me, 'exportacao', formato + ': ' + String(b.nome || '').slice(0, 200));
+            return res.json({ ok: 1 });
         }
 
         throw new Erro('Operação inválida');

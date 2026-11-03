@@ -83,7 +83,10 @@ function rgExp() {
     const { P, Q } = rgQuadros(),
         S = rgSel(Q);
     if (!S.length) {
-        alert('Nenhum item marcado. Use Personalizar relatório para escolher o que entra no PDF e no Excel.');
+        aviso(
+            'Nenhum item marcado. Use Personalizar relatório para escolher o que entra no PDF e no Excel.',
+            'Nada para exportar'
+        );
         return null;
     }
     return { P, Q: S };
@@ -485,6 +488,7 @@ function rgScr() {
 function rgPdf() {
     const x = rgExp();
     if (!x) return;
+    regExp('PDF', 'Relatório Controle de Processos ' + x.P.nome);
     const { P, Q } = x,
         f = document.createElement('iframe');
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
@@ -509,6 +513,7 @@ ${Q.map(q => `<section><h2>${esc(q.t)}</h2>${rgTab(q)}${q.nota ? `<p class="nt">
 function rgXls() {
     const x = rgExp();
     if (!x) return;
+    regExp('Excel', 'Relatório Controle de Processos ' + x.P.nome);
     const { P, Q } = x,
         wb = XLSX.utils.book_new();
     Q.forEach(q =>

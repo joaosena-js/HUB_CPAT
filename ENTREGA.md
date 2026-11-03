@@ -1,4 +1,52 @@
-# Hub DBM: entrega
+# Hub Patrimonial: entrega
+
+## Versão 7.5: mensagens do sistema, troca obrigatória de senha e encerramento por inatividade
+
+**Mensagens do próprio sistema:** as 42 janelas cinza do navegador (alert, confirm e prompt) foram trocadas por janelas com o visual do Hub.
+- **Confirmações** dizem o que vai acontecer e trazem o botão com o nome da ação ("Excluir processo", "Remover foto"). Nas exclusões, o botão é vermelho, o texto avisa que a ação não pode ser desfeita e o foco começa em Cancelar. A tecla Esc cancela.
+- **Avisos** de dados faltando aparecem por cima do formulário, sem fechá-lo ("Confira os dados").
+- **Erros do servidor** aparecem com o título "Não foi possível concluir".
+
+**Aviso de sucesso:** depois de salvar, aparece no canto da tela uma mensagem como "Processo atualizado", "Atendimento registrado", "Foto enviada" ou "Lista de Verificação registrada", que some em 3 segundos. No celular, ela ocupa a largura da tela.
+
+**Troca obrigatória de senha:**
+- Quando o administrador cadastra um usuário ou redefine a senha de alguém, a senha passa a ser provisória.
+- No primeiro acesso, o servidor só consegue entrar depois de criar uma senha própria. Até lá, o servidor recusa qualquer outra operação, inclusive nas APIs de atendimentos, eventos e veículos.
+- A tela de Usuários mostra "Aguardando troca da senha provisória" enquanto a troca não acontece.
+- Os usuários que já existem não são afetados: ninguém será obrigado a trocar a senha por causa da atualização.
+
+**Senhas fracas recusadas** ao cadastrar ou trocar: sequências (12345678, abcdefgh, qwertyui), um só caractere repetido, senhas comuns (como senha123) e senhas que contenham o login. A nova senha também precisa ser diferente da atual. Senhas antigas continuam valendo para entrar.
+
+**Bloqueio de tentativas também por IP:** além do bloqueio de 15 minutos após 5 erros no mesmo login, agora há bloqueio de 15 minutos após 30 erros vindos do mesmo IP, com qualquer login. O limite é alto de propósito, porque todos os computadores de um órgão costumam sair na internet pelo mesmo IP. Quando um login é bloqueado, o Log de atividades registra "Login bloqueado por tentativas".
+
+**Encerramento por inatividade:** depois de 55 minutos sem uso de teclado, mouse ou toque, o sistema pergunta "Você ainda está usando o sistema?". Sem resposta, a sessão é encerrada aos 60 minutos, a tela de login avisa o motivo e o log registra a saída "Por inatividade". O uso em qualquer aba do Hub conta como atividade. O tempo fica em `INATIVO_MIN`, em `js/base.js`, e pode ser ajustado.
+
+**Banco:** a coluna `usuarios.trocar_senha` e um índice para a contagem de falhas por IP são criados sozinhos no primeiro acesso, sem script manual.
+
+**Arquivos alterados:** `index.html` (estilos), `js/base.js`, `js/processos.js`, `js/atendimentos.js`, `js/calendario.js`, `js/veiculos.js`, `js/relatorios.js`, `js/usuarios.js`, `api/data.js`, `api/atendimentos.js`, `api/eventos.js`, `api/veiculos.js`, `lib/comum.js`, `GUIA-DO-CODIGO.md`.
+
+**Testes:** 28 verificações de API (senha provisória, senhas fracas, bloqueios, log) e 21 de tela (confirmação, aviso, aviso de sucesso, troca de senha, inatividade, celular); todas as telas antigas rodadas de novo com os cabeçalhos de segurança, sem diferença; API com 20 e 39 verificações.
+
+## Versão 7.4: cabeçalhos de segurança, atualização a cada 30 segundos e exportações no log
+
+**Cabeçalhos de segurança:** o novo arquivo `vercel.json` faz a Vercel enviar, em todas as páginas e na API:
+- `Content-Security-Policy`: só carrega scripts, estilos e imagens do próprio sistema (mais as fotos do Vercel Blob e o envio para `vercel.com/api/blob`) e proíbe que o Hub seja aberto dentro de outro site;
+- `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, `Permissions-Policy` (câmera, microfone e localização desligados) e `Strict-Transport-Security`.
+Todas as telas, impressões, exportações e o envio de fotos foram testados com esses cabeçalhos ativos, sem nenhum bloqueio.
+
+**Atualização automática:** passou de 4 para 30 segundos, e o sistema atualiza na hora quando o servidor volta para a aba do Hub. Isso reduz as consultas ao servidor em cerca de 7 vezes.
+
+**Exportações no log:** cada exportação passa a aparecer no Log de atividades com a ação `exportacao`, o formato e o nome do relatório. Vale para a Planilha completa, o Backup (JSON), as exportações em Excel e PDF das telas, o Relatório Controle de Processos, o calendário e a Lista de Verificação dos veículos.
+
+**Aviso no login:** "Acesso restrito a servidores autorizados. As ações realizadas no sistema ficam registradas com usuário, data, hora e IP."
+
+**Nome Hub Patrimonial:** título da aba do navegador, nome da planilha completa (`hub_patrimonial_processos_...xlsx`), nome do backup (`hub_patrimonial_backup_...json`), `package.json` e este documento.
+
+**Biblioteca de planilhas (pendente):** a atualização do SheetJS 0.18.5 para a 0.20.3 não entrou nesta versão, porque o ambiente onde o sistema é preparado não tem acesso ao site oficial (cdn.sheetjs.com). Para fazer manualmente: baixe `https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js`, salve com o nome `xlsx.min.js` no lugar do arquivo atual e teste uma importação e uma exportação antes de publicar.
+
+**Arquivos alterados:** `vercel.json` (novo), `index.html`, `api/data.js` (operação `exportacao`), `js/base.js`, `js/processos.js`, `js/relatorios.js`, `js/calendario.js`, `js/veiculos.js`, `package.json`.
+
+**Testes:** 17 verificações novas (título, aviso, intervalo, exportações no log, recusa sem sessão); todas as telas antigas rodadas com os cabeçalhos ativos, sem violação; API com 20 e 39 verificações.
 
 ## Versão 7.3: tela de abertura e troca de domínio
 

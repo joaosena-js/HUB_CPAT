@@ -95,7 +95,7 @@ function atLoad(silencioso) {
                 ATL = sg;
                 if (vis) draw();
             } catch (e) {
-                if (!silencioso) alert('Erro: ' + e.message);
+                if (!silencioso) aviso(e.message, 'Não foi possível carregar os atendimentos', 'erro');
             } finally {
                 ATP = null;
             }
@@ -261,11 +261,12 @@ async function atHist(id) {
 function atHAdd(id) {
     const d = $('#hd').value,
         t = $('#hx').value.trim();
-    if (!d || t.length < 3) return alert('Informe a data e a descrição do registro.');
+    if (!d || t.length < 3) return aviso('Informe a data e a descrição do registro.');
     run(async () => {
         await api({ op: 'hist_add', id, data: d, descricao: t }, '/api/atendimentos');
         $('#hx').value = '';
         atHist(id);
+        toast('Registro adicionado ao histórico');
     });
 }
 
@@ -340,12 +341,13 @@ function atSv(id) {
         'data_finalizacao',
         'processo_numero',
     ].forEach(k => (b[k] = g(k)));
-    if (b.situacao == AT_FIM && !b.data_finalizacao) return alert('Informe a data de finalização.');
+    if (b.situacao == AT_FIM && !b.data_finalizacao) return aviso('Informe a data de finalização.');
     umaVez(async () => {
         const j = await api({ op: 'save', item: b }, '/api/atendimentos');
         await atLoad(1);
         atDet(j.id);
         if (tab == 'aten') draw();
+        toast(b.id ? 'Atendimento atualizado' : 'Atendimento registrado');
     });
 }
 // Finaliza um atendimento
@@ -360,13 +362,21 @@ function atFin(id) {
     });
 }
 // Exclui um atendimento
-function atRm(id) {
-    if (confirm('Excluir este atendimento e o histórico dele?'))
+async function atRm(id) {
+    if (
+        await confirma(
+            'O atendimento e o histórico dele serão apagados. Esta ação não pode ser desfeita.',
+            'Excluir atendimento',
+            'Excluir atendimento',
+            true
+        )
+    )
         run(async () => {
             await api({ op: 'del', id }, '/api/atendimentos');
             $('#dd').close();
             await atLoad(1);
             if (tab == 'aten') draw();
+            toast('Atendimento excluído');
         });
 }
 
@@ -593,8 +603,16 @@ function atImpPrev() {
     $('#ai_go').innerHTML = `${ic('up', 15)} Importar ${l.length} atendimento(s)`;
 }
 // Importação: envia as linhas válidas ao servidor
-function atImpGo() {
-    if (!ATI || !confirm(`Importar ${ATI.linhas.length} atendimento(s)?`)) return;
+async function atImpGo() {
+    if (
+        !ATI ||
+        !(await confirma(
+            `${ATI.linhas.length} atendimento(s) serão gravados no Hub.`,
+            'Importar atendimentos',
+            'Importar'
+        ))
+    )
+        return;
     const itens = ATI.linhas.map(x => ({
         linha: x.linha,
         data: x.data,
@@ -616,10 +634,12 @@ function atImpGo() {
         $('#dd').close();
         ATI = null;
         await atLoad();
-        alert(
-            `${j.importados} atendimento(s) importado(s).` +
-                (j.ignorados ? ` ${j.ignorados} já estavam no Hub e foram ignorados.` : '')
-        );
         draw();
+        aviso(
+            `${j.importados} atendimento(s) importado(s).` +
+                (j.ignorados ? ` ${j.ignorados} já estavam no Hub e foram ignorados.` : ''),
+            'Importação concluída',
+            'ok'
+        );
     });
 }

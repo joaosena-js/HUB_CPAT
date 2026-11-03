@@ -1,6 +1,16 @@
 // API de atendimentos (/api/atendimentos): listar, salvar, finalizar, excluir, histórico e importação de planilha.
 
-const { Erro, hoje, ehData, txt, iniciar, usuarioDaSessao, semSessao, tratarErro } = require('../lib/comum');
+const {
+    Erro,
+    hoje,
+    ehData,
+    txt,
+    iniciar,
+    usuarioDaSessao,
+    exigeTroca,
+    semSessao,
+    tratarErro,
+} = require('../lib/comum');
 
 const CANAIS = ['E-mail', 'WhatsApp', 'Presencial', 'Teams', 'Ligação'];
 const CATEGORIAS = ['Orientação', 'Suporte operacional'];
@@ -59,6 +69,7 @@ module.exports = async (req, res) => {
         const { sql, b, registrar } = ctx;
         const me = await usuarioDaSessao(sql, req);
         if (!me) return semSessao(sql, res);
+        if (exigeTroca(me, b, res)) return;
         const adm = me.perfil === 'admin';
         const rotulo = r => `#${r.id} ${r.solicitante}`.slice(0, 120);
         const hist = (id, descricao) =>

@@ -408,11 +408,12 @@ async function hist(id) {
 function hAdd(id) {
     const d = $('#hd').value,
         t = $('#hx').value.trim();
-    if (!d || t.length < 3) return alert('Informe a data e a descrição do registro.');
+    if (!d || t.length < 3) return aviso('Informe a data e a descrição do registro.');
     run(async () => {
         await api({ op: 'hist_add', id, data: d, descricao: t });
         $('#hx').value = '';
         hist(id);
+        toast('Registro adicionado ao histórico');
     });
 }
 // Pesquisa rápida do cabeçalho: mostra até alguns resultados enquanto o usuário digita
@@ -579,7 +580,7 @@ function listas() {
 function addL(k) {
     const v = $('#n_' + k).value.trim();
     if (!v) return;
-    if (L[k].includes(v)) return alert('Esse item já existe.');
+    if (L[k].includes(v)) return aviso('Esse item já existe na lista.');
     L[k].push(v);
     if (k != 'status' && k != 'resp') L[k].sort((a, b) => a.localeCompare(b, 'pt'));
     sl();
@@ -601,14 +602,14 @@ function cancelL() {
     draw();
 }
 // Cadastros: grava o item editado
-function saveL() {
+async function saveL() {
     const { k, i } = EL,
         o = L[k][i],
         n = $('#el').value.trim();
     if (!n || n == o) return cancelL();
-    if (L[k].includes(n)) return alert('Esse item já existe.');
+    if (L[k].includes(n)) return aviso('Esse item já existe na lista.');
     if (k == 'status' && o.startsWith('CONCLU') && !n.startsWith('CONCLU'))
-        return alert('O status de conclusão precisa continuar começando com "CONCLU".');
+        return aviso('O status de conclusão precisa continuar começando com "CONCLU".');
     const M = {
             status: r => r.status == o && (r.status = n),
             resp: r => r.resp == o && (r.resp = n),
@@ -637,7 +638,11 @@ function saveL() {
     });
     if (
         ch.length &&
-        !confirm(ch.length + ' processo(s) usam "' + o + '" e serão atualizados para "' + n + '". Continuar?')
+        !(await confirma(
+            ch.length + ' processo(s) usam "' + o + '" e serão atualizados para "' + n + '".',
+            'Renomear item da lista',
+            'Renomear e atualizar'
+        ))
     )
         return;
     run(async () => {
@@ -647,11 +652,19 @@ function saveL() {
         await Promise.all(ch.map(put));
         EL = null;
         draw();
+        toast('Lista atualizada');
     });
 }
 // Cadastros: remove um item da lista
-function delL(k, i) {
-    if (confirm('Remover "' + L[k][i] + '" da lista?')) {
+async function delL(k, i) {
+    if (
+        await confirma(
+            '"' + L[k][i] + '" deixa de aparecer nas opções. Os processos que já usam esse item não mudam.',
+            'Remover item da lista',
+            'Remover',
+            true
+        )
+    ) {
         L[k].splice(i, 1);
         sl();
     }
@@ -661,6 +674,7 @@ function sl() {
     run(async () => {
         await api({ op: 'listas', listas: L });
         draw();
+        toast('Lista atualizada');
     });
 }
 // Carrega os dados de exemplo (seed.json) num banco vazio
@@ -793,7 +807,7 @@ const chNum = n =>
 function sv() {
     collect();
     const r = { ...cur };
-    if (!r.numero || !r.tram) return alert('Informe o nº do processo e a data de entrada.');
+    if (!r.numero || !r.tram) return aviso('Informe o nº do processo e a data de entrada.');
     r.itens = r.itens === '' ? '' : +r.itens;
     if (r.tipo != 'Transferência') r.recebedor = '';
     if (r.tipo == CAIXA || r.tipo == VEICULO) r.itens = '';
@@ -805,17 +819,20 @@ function sv() {
     if (!o || o.status != r.status || o.resp != r.resp) r.mov = TS();
     const x = D.find(p => p.id != r.id && chNum(p.numero) == chNum(r.numero));
     if (x && (!o || chNum(o.numero) != chNum(r.numero))) {
-        alert(
-            `Já existe o processo nº ${x.numero} (${x.tipo}${x.orgao ? ', ' + x.orgao : ''}). Ele será aberto para você conferir.`
-        );
-        $('#dg').close();
-        det(x.id);
+        aviso(
+            `Já existe o processo nº ${x.numero} (${x.tipo}${x.orgao ? ', ' + x.orgao : ''}). Ele será aberto para você conferir.`,
+            'Processo já cadastrado'
+        ).then(() => {
+            $('#dg').close();
+            det(x.id);
+        });
         return;
     }
     umaVez(async () => {
         await put(r);
         $('#dg').close();
         draw();
+        toast(o ? 'Processo atualizado' : 'Processo cadastrado');
     });
 }
 // Conclui um processo
@@ -828,17 +845,29 @@ function fin(id) {
         $('#dg').close();
         $('#dd').close();
         draw();
+        toast('Processo concluído');
     });
 }
 // Exclui um processo (somente administrador)
-function rm(id) {
-    if (confirm('Excluir este processo?'))
+async function rm(id) {
+    const r = D.find(x => x.id == id);
+    if (
+        await confirma(
+            'O processo' +
+                (r ? ' nº ' + r.numero : '') +
+                ' e o histórico dele serão apagados. Esta ação não pode ser desfeita.',
+            'Excluir processo',
+            'Excluir processo',
+            true
+        )
+    )
         run(async () => {
             await api({ op: 'del', id });
             D = D.filter(x => x.id != id);
             $('#dg').close();
             $('#dd').close();
             draw();
+            toast('Processo excluído');
         });
 }
 const H = [
@@ -891,13 +920,15 @@ function xl() {
     const ws = xlsTipos(XLSX.utils.json_to_sheet(rows));
     ws['!autofilter'] = { ref: ws['!ref'] };
     XLSX.utils.book_append_sheet(wb, ws, 'PROCESSOS');
-    XLSX.writeFile(wb, 'processos_dbm_' + TS() + '.xlsx');
+    regExp('Excel', 'Planilha completa de processos');
+    XLSX.writeFile(wb, 'hub_patrimonial_processos_' + TS() + '.xlsx');
 }
 // Baixa uma cópia de segurança (backup) em JSON com processos e listas
 function bk() {
+    regExp('Backup JSON', 'Processos e listas');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify({ processos: D, listas: L })], { type: 'application/json' }));
-    a.download = 'backup_dbm_' + TS() + '.json';
+    a.download = 'hub_patrimonial_backup_' + TS() + '.json';
     a.click();
 }
 const pd = v => {
@@ -1019,17 +1050,20 @@ function impPrev() {
     $('#ig').disabled = !rs.length;
 }
 // Importação: grava as linhas no servidor
-function impGo() {
+async function impGo() {
     const m = $('#im').value,
         p = m == 'f' ? '' : $('#ip').value,
         rs = IMP.rs;
     if (!rs.length) return;
     if (
-        !confirm(
+        !(await confirma(
             m == 'f'
-                ? 'Substituir TODOS os dados do banco? Vale para todos os usuários.'
-                : 'Confirmar a importação' + (p ? ' de ' + p : '') + '?'
-        )
+                ? 'Todos os processos do banco serão substituídos pelos da planilha, para todos os usuários. Esta ação não pode ser desfeita.'
+                : rs.length + ' linha(s) serão importadas' + (p ? ' como ' + p : '') + '.',
+            m == 'f' ? 'Substituir todos os dados' : 'Importar processos',
+            m == 'f' ? 'Substituir tudo' : 'Importar',
+            m == 'f'
+        ))
     )
         return;
     const st = L.status[0] || '';
@@ -1063,5 +1097,6 @@ function impGo() {
         $('#dd').close();
         LAST = '';
         await load();
+        toast('Importação concluída');
     });
 }

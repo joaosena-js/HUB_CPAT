@@ -2,7 +2,17 @@
 // e Lista de Verificação de Veículo (vistoria). Qualquer usuário cadastra e altera; só o administrador exclui.
 
 const crypto = require('crypto');
-const { Erro, hoje, ehData, txt, iniciar, usuarioDaSessao, semSessao, tratarErro } = require('../lib/comum');
+const {
+    Erro,
+    hoje,
+    ehData,
+    txt,
+    iniciar,
+    usuarioDaSessao,
+    exigeTroca,
+    semSessao,
+    tratarErro,
+} = require('../lib/comum');
 const { MAXIMO, blobOk, blob, linkEnvio, conferirEnvio, linkLeitura } = require('../lib/arquivos');
 
 const SITUACOES_DOC = ['Regularizado', 'Em regularização', 'Não regularizado'];
@@ -145,6 +155,7 @@ module.exports = async (req, res) => {
         const { sql, b, registrar } = ctx;
         const me = await usuarioDaSessao(sql, req);
         if (!me) return semSessao(sql, res);
+        if (exigeTroca(me, b, res)) return;
         const adm = me.perfil === 'admin';
         const veiculo = async id => {
             const v = (await consultar(sql, +id || 0))[0];

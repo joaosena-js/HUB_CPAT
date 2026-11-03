@@ -18,6 +18,8 @@ const AC = {
     usuario_criado: 'Criou usuário',
     usuario_alterado: 'Alterou usuário',
     senha_alterada: 'Alterou a própria senha',
+    login_bloqueado: 'Login bloqueado por tentativas',
+    exportacao: 'Exportou dados',
     atendimento_criado: 'Registrou atendimento',
     atendimento_alterado: 'Alterou atendimento',
     atendimento_excluido: 'Excluiu atendimento',
@@ -72,7 +74,7 @@ function usuScr() {
             <td>${esc(u.login)}</td>
             <td>${u.perfil == 'admin' ? 'Administrador' : 'Servidor'}</td>
             <td>${esc(u.responsavel) || '—'}</td>
-            <td><span class="bd ${u.ativo ? 'g' : 'r'}">${u.ativo ? 'Ativo' : 'Inativo'}</span></td>
+            <td><span class="bd ${u.ativo ? 'g' : 'r'}">${u.ativo ? 'Ativo' : 'Inativo'}</span>${u.ativo && u.trocar_senha ? '<br><small class="nt">Aguardando troca da senha provisória</small>' : ''}</td>
             <td>${esc(u.ultimo_acesso) || '—'}</td>
             <td><button class="btn s" title="Editar">${ic('pen', 14)}</button></td>
             </tr>`
@@ -125,7 +127,7 @@ function usuEd(id) {
 <label>Responsável vinculado<select id="u_resp"><option value="">(nenhum)</option>${[...new Set([...L.resp, u.responsavel].filter(Boolean))].map(x => `<option ${u.responsavel == x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
 <label>Situação<select id="u_ativo"><option value="1" ${u.ativo ? 'selected' : ''}>Ativo</option><option value="0" ${u.ativo ? '' : 'selected'}>Inativo</option></select></label>
 <label class="w">${id ? 'Nova senha (deixe em branco para manter a atual)' : 'Senha inicial'}<input type="password" id="u_senha" minlength="8" maxlength="200" autocomplete="new-password" ${id ? '' : 'required'}></label>
-<p class="nt w" style="margin:0">O responsável vinculado liga o usuário ao nome usado no campo Responsável dos processos; é ele que define o aviso exibido ao entrar. A senha precisa ter pelo menos 8 caracteres. Entregue a senha inicial de forma reservada e oriente a troca em "Alterar minha senha".</p>
+<p class="nt w" style="margin:0">O responsável vinculado liga o usuário ao nome usado no campo Responsável dos processos; é ele que define o aviso exibido ao entrar. A senha precisa ter pelo menos 8 caracteres e não pode ser uma sequência nem conter o login. A senha que você cadastrar é provisória: no primeiro acesso, o servidor será obrigado a trocá-la. Entregue-a de forma reservada.</p>
 <div class="w" style="display:flex;gap:8px"><button class="btn p">${ic('ok', 15)} Salvar</button><button type="button" class="btn" onclick="$('#dd').close()">Cancelar</button></div></form>`;
     $('#dd').showModal();
 }
@@ -145,6 +147,7 @@ function usuSv(id) {
         await api(b);
         $('#dd').close();
         usuLoad();
+        toast(b.id ? 'Usuário atualizado' : 'Usuário cadastrado');
     });
 }
 // Janela para o próprio usuário trocar a senha
@@ -155,10 +158,10 @@ function senha() {
 }
 // Grava a nova senha
 function senhaSv() {
-    if ($('#s_n').value != $('#s_r').value) return alert('A confirmação não confere com a nova senha.');
+    if ($('#s_n').value != $('#s_r').value) return aviso('A confirmação não confere com a nova senha.');
     run(async () => {
         await api({ op: 'minha_senha', atual: $('#s_a').value, nova: $('#s_n').value });
         $('#dd').close();
-        alert('Senha alterada.');
+        toast('Senha alterada');
     });
 }

@@ -41,11 +41,12 @@ const IC = {
     gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
 };
 // Versão do sistema, exibida abaixo do nome no menu lateral
-const VERSAO = '7.3';
+const VERSAO = '7.5';
 IC.pie = '<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>';
 IC.chat = '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
 IC.home =
     '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>';
+IC.lock = '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>';
 IC.cal = '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>';
 IC.clip =
     '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>';
@@ -94,6 +95,12 @@ function auth(setup) {
             $('#lgi').innerHTML = ic('bank', 24);
             $('#lgver').textContent = 'Versão ' + VERSAO;
             $('#lge').textContent = '';
+            try {
+                if (sessionStorage.getItem('hub_inativo')) {
+                    sessionStorage.removeItem('hub_inativo');
+                    $('#lge').textContent = 'Sua sessão foi encerrada por inatividade. Entre novamente.';
+                }
+            } catch (e) {}
             // Botão de mostrar ou esconder a senha e aviso de Caps Lock ligado
             const olho = $('#lgv'),
                 mostra = v => {
@@ -152,24 +159,142 @@ async function api(body, url = '/api/data') {
             await auth(j.setup);
             continue;
         }
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.status);
+        if (!r.ok) {
+            const j = await r.json().catch(() => ({}));
+            if (r.status == 403 && j.trocar_senha) {
+                await trocaObrigatoria();
+                continue;
+            }
+            throw new Error(j.error || r.status);
+        }
         return r.json();
     }
+}
+// Troca obrigatória da senha provisória (usuário novo ou senha redefinida pelo administrador).
+// Vários pedidos podem receber o aviso ao mesmo tempo: todos esperam a mesma troca.
+let TROCA = null;
+function trocaObrigatoria() {
+    return (TROCA =
+        TROCA ||
+        new Promise(fim => {
+            let d = $('#tsn');
+            if (!d) {
+                d = document.createElement('dialog');
+                d.id = 'tsn';
+                d.className = 'ms';
+                d.setAttribute('aria-labelledby', 'tsn_t');
+                d.oncancel = e => e.preventDefault();
+                document.body.appendChild(d);
+            }
+            d.innerHTML = `<form id="tsn_f"><div class="msb"><i class="msi">${ic('lock', 22)}</i><div class="msc"><h3 id="tsn_t">Troque sua senha provisória</h3><p>Sua senha foi cadastrada pelo administrador. Para continuar, crie uma senha que só você conheça.</p></div></div>
+<div class="fm" style="grid-template-columns:1fr;margin-top:14px"><label>Senha provisória<input type="password" id="tsn_a" required autocomplete="current-password"></label><label>Nova senha (mínimo 8 caracteres)<input type="password" id="tsn_n" required minlength="8" maxlength="200" autocomplete="new-password"></label><label>Repita a nova senha<input type="password" id="tsn_r" required minlength="8" maxlength="200" autocomplete="new-password"></label><p class="nt" id="tsn_e" role="alert" style="color:var(--er);margin:0"></p></div>
+<div class="msa"><button type="button" class="btn" id="tsn_s">Sair</button><button class="btn p">Salvar nova senha</button></div></form>`;
+            $('#tsn_s').onclick = () => sair();
+            $('#tsn_f').onsubmit = async e => {
+                e.preventDefault();
+                const er = $('#tsn_e'),
+                    n = $('#tsn_n').value;
+                if (n != $('#tsn_r').value) return (er.textContent = 'A confirmação não confere com a nova senha.');
+                er.textContent = '';
+                const r = await fetch('/api/data', {
+                    method: 'POST',
+                    headers: HD,
+                    body: JSON.stringify({ op: 'minha_senha', atual: $('#tsn_a').value, nova: n }),
+                }).catch(() => null);
+                const j = r ? await r.json().catch(() => ({})) : {};
+                if (!r || !r.ok) return (er.textContent = j.error || 'Não foi possível conectar. Tente novamente.');
+                d.close();
+                TROCA = null;
+                fim();
+                setTimeout(() => toast('Senha alterada'), 600);
+            };
+            d.showModal();
+            $('#tsn_a').focus();
+        }));
 }
 // Verdadeiro quando o usuário logado é administrador
 const adm = () => ME && ME.perfil == 'admin';
 // Encerra a sessão e volta para a tela de login
-function sair() {
+function sair(motivo) {
     run(async () => {
-        await fetch('/api/data', { method: 'POST', headers: HD, body: JSON.stringify({ op: 'logout' }) });
+        await fetch('/api/data', { method: 'POST', headers: HD, body: JSON.stringify({ op: 'logout', motivo }) });
         location.reload();
     });
+}
+// Mensagens do próprio sistema, no lugar das janelas alert, confirm e prompt do navegador.
+// Uma só janela (#ms) por vez: abrir outra encerra a anterior como cancelada.
+let MS_FIM = null;
+function caixa({ texto, titulo, tipo = 'aviso', ok = 'Entendi', cancelar = '', perigo = false, campo = null }) {
+    if (MS_FIM) MS_FIM(null);
+    let d = $('#ms');
+    if (!d) {
+        d = document.createElement('dialog');
+        d.id = 'ms';
+        d.setAttribute('aria-labelledby', 'ms_t');
+        d.setAttribute('aria-describedby', 'ms_x');
+        document.body.appendChild(d);
+    }
+    const icone = { erro: 'warn', aviso: 'warn', ok: 'ok', pergunta: 'warn' }[tipo] || 'warn';
+    d.className = 'ms ' + tipo;
+    d.innerHTML = `<div class="msb"><i class="msi">${ic(icone, 22)}</i><div class="msc"><h3 id="ms_t">${esc(titulo)}</h3><p id="ms_x">${esc(texto)}</p>${
+        campo
+            ? `<input id="ms_c" value="${esc(campo.valor || '')}" maxlength="${campo.max || 100}" aria-labelledby="ms_x">`
+            : ''
+    }</div></div><div class="msa">${cancelar ? `<button type="button" class="btn" data-r="0">${esc(cancelar)}</button>` : ''}<button type="button" class="btn ${perigo ? 'pd' : 'p'}" data-r="1">${esc(ok)}</button></div>`;
+    return new Promise(fim => {
+        MS_FIM = r => {
+            MS_FIM = null;
+            d.onclose = null;
+            if (d.open) d.close();
+            fim(r);
+        };
+        d.querySelectorAll('[data-r]').forEach(
+            b => (b.onclick = () => MS_FIM(b.dataset.r == '1' ? (campo ? $('#ms_c').value : true) : null))
+        );
+        if (campo) $('#ms_c').onkeydown = e => e.key == 'Enter' && (e.preventDefault(), MS_FIM($('#ms_c').value));
+        d.onclose = () => MS_FIM && MS_FIM(null);
+        d.showModal();
+        (campo ? $('#ms_c') : d.querySelector(perigo ? '[data-r="0"]' : '[data-r="1"]')).focus();
+    });
+}
+// Aviso que só informa (erros, dados faltando, resultado de importação)
+const aviso = (texto, titulo = 'Confira os dados', tipo = 'aviso') => caixa({ texto, titulo, tipo });
+// Pergunta de confirmação: devolve true quando a pessoa confirma. Ações destrutivas usam perigo e o foco começa em Cancelar.
+const confirma = (texto, titulo, ok = 'Confirmar', perigo = false) =>
+    caixa({ texto, titulo, tipo: perigo ? 'erro' : 'pergunta', ok, cancelar: 'Cancelar', perigo }).then(
+        r => r === true
+    );
+// Pergunta com campo de texto: devolve o texto digitado ou null se cancelar
+const pergunta = (texto, titulo, valor = '') =>
+    caixa({ texto, titulo, tipo: 'pergunta', ok: 'Salvar', cancelar: 'Cancelar', campo: { valor } });
+// Aviso discreto de sucesso no canto da tela, que some sozinho
+let TOAST_T = 0;
+function toast(texto) {
+    let t = $('#toast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'toast';
+        t.setAttribute('role', 'status');
+        t.setAttribute('popover', 'manual');
+        document.body.appendChild(t);
+    }
+    t.innerHTML = `${ic('ok', 18)}<span>${esc(texto)}</span>`;
+    if (t.showPopover) {
+        if (t.matches(':popover-open')) t.hidePopover();
+        t.showPopover();
+    }
+    t.classList.add('on');
+    clearTimeout(TOAST_T);
+    TOAST_T = setTimeout(() => {
+        t.classList.remove('on');
+        TOAST_T = setTimeout(() => t.hidePopover && t.matches(':popover-open') && t.hidePopover(), 250);
+    }, 3200);
 }
 const run = async f => {
     try {
         await f();
     } catch (e) {
-        alert('Erro: ' + e.message);
+        aviso(e.message, 'Não foi possível concluir', 'erro');
     }
 };
 // Salvar com proteção contra clique duplo: enquanto um salvamento está em andamento, os demais cliques são ignorados
@@ -184,7 +309,8 @@ const umaVez = async f => {
     }
 };
 // Verdadeiro quando o usuário não está com janela aberta nem digitando (a atualização automática só redesenha nesse caso)
-const livre = () => !$('#dg').open && !$('#dd').open && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+const livre = () =>
+    !$('#dg').open && !$('#dd').open && !MS_FIM && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
 // Carrega processos e listas do servidor e desenha a tela
 async function load() {
     let sg;
@@ -208,7 +334,7 @@ async function load() {
         $('#mn').innerHTML = '<div class="ib">Não foi possível conectar ao banco: ' + esc(e.message) + '</div>';
         return;
     }
-    if (!$('#dg').open && !$('#dd').open && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) {
+    if (livre()) {
         LAST = sg;
         draw();
         lembrete();
@@ -572,8 +698,17 @@ const xlsNome = s =>
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/\W+/g, '_');
+// Registra no log quem exportou o quê; uma falha aqui não impede a exportação
+function regExp(formato, nome) {
+    fetch('/api/data', {
+        method: 'POST',
+        headers: HD,
+        body: JSON.stringify({ op: 'exportacao', formato, nome }),
+    }).catch(() => {});
+}
 // Exporta uma tabela em Excel (xls) ou PDF (impressão do navegador)
 function xp(title, h, r, kind, sub) {
+    regExp(kind == 'x' ? 'Excel' : 'PDF', title);
     if (kind == 'x') {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, xlsRel(title, h, r, sub), 'RELATORIO');
@@ -666,19 +801,66 @@ document.addEventListener('click', e => {
 });
 // Atualização automática: busca novidades no servidor sem atrapalhar quem está digitando
 const poll = () => {
-    if (
-        ready &&
-        !document.hidden &&
-        !$('#dg').open &&
-        !$('#dd').open &&
-        !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)
-    ) {
+    if (ready && !document.hidden && livre()) {
         load();
         if (tab == 'veic' || tab == 'vproc' || tab == 'home') veLoad(1);
         if (tab == 'aten' || tab == 'relg' || tab == 'home') atLoad(1);
         if (tab == 'cal' || tab == 'relg' || tab == 'home') evLoad(1);
     }
 };
-setInterval(poll, 4000);
+// Encerramento por inatividade: sem uso de teclado, mouse ou toque por INATIVO_MIN minutos, a sessão é encerrada,
+// com aviso AVISO_MIN minutos antes. A última atividade fica no localStorage para valer em todas as abas abertas do Hub.
+const INATIVO_MIN = 60,
+    AVISO_MIN = 5;
+let ULT = Date.now(),
+    AVISO_INAT = false;
+const marcaAtividade = () => {
+    ULT = Date.now();
+    try {
+        localStorage.setItem('hub_atividade', String(ULT));
+    } catch (e) {}
+};
+const ultimaAtividade = () => {
+    let x = 0;
+    try {
+        x = +localStorage.getItem('hub_atividade') || 0;
+    } catch (e) {}
+    return Math.max(ULT, x);
+};
+['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(ev =>
+    addEventListener(ev, () => Date.now() - ULT > 15000 && marcaAtividade(), { passive: true, capture: true })
+);
+function inatividade() {
+    if (!ME || $('#lg').open) return;
+    const min = (Date.now() - ultimaAtividade()) / 60000;
+    if (min >= INATIVO_MIN) {
+        try {
+            sessionStorage.setItem('hub_inativo', '1');
+        } catch (e) {}
+        return sair('inatividade');
+    }
+    if (AVISO_INAT && min < INATIVO_MIN - AVISO_MIN && MS_FIM) return MS_FIM(true);
+    if (!AVISO_INAT && min >= INATIVO_MIN - AVISO_MIN) {
+        AVISO_INAT = true;
+        caixa({
+            texto: `Por segurança, a sessão será encerrada em ${AVISO_MIN} minutos se o sistema continuar sem uso. Dados digitados e não salvos serão perdidos.`,
+            titulo: 'Você ainda está usando o sistema?',
+            tipo: 'pergunta',
+            ok: 'Continuar conectado',
+        }).then(r => {
+            AVISO_INAT = false;
+            if (r) marcaAtividade();
+        });
+    }
+}
+marcaAtividade();
+setInterval(inatividade, 20000);
+// Atualização automática a cada 30 segundos e logo que a aba volta a ficar visível
+setInterval(poll, 30000);
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    inatividade();
+    poll();
+});
 document.addEventListener('visibilitychange', poll);
 addEventListener('focus', poll);

@@ -126,7 +126,7 @@ function evLoad(silencioso) {
                 EVL = sg;
                 if (vis) draw();
             } catch (e) {
-                if (!silencioso) alert('Erro: ' + e.message);
+                if (!silencioso) aviso(e.message, 'Não foi possível carregar o calendário', 'erro');
             } finally {
                 EVP = null;
             }
@@ -368,15 +368,16 @@ async function evEnviarVarios(id, l) {
                 : 'PDF, JPG ou PNG, até 10 MB.';
     evAnexos(id);
     evLoad(1);
-    if (erros.length) alert('Não foi possível anexar:\n' + erros.join('\n'));
+    if (erros.length) aviso(erros.join('\n'), 'Não foi possível anexar', 'erro');
+    else if (l.length) toast(l.length > 1 ? l.length + ' arquivos anexados' : 'Arquivo anexado');
 }
 // Escolha de arquivos para anexar ao evento
 async function evUp(id) {
     const fs = [...$('#ev_arq').files],
         bt = $('#ev_env');
-    if (!fs.length) return alert('Escolha o arquivo.');
+    if (!fs.length) return aviso('Escolha o arquivo.');
     const er = fs.map(evArqErro).filter(Boolean);
-    if (er.length) return alert(er.join('\n'));
+    if (er.length) return aviso(er.join('\n'), 'Arquivo não aceito');
     bt.disabled = true;
     try {
         await evEnviarVarios(
@@ -400,16 +401,24 @@ async function evAbrir(aid) {
         } else location.href = j.url;
     } catch (e) {
         if (w) w.close();
-        alert('Erro: ' + e.message);
+        aviso(e.message, 'Não foi possível abrir o arquivo', 'erro');
     }
 }
 // Exclui um anexo do evento
-function evRmAnexo(aid, id) {
-    if (confirm('Remover este arquivo? Ele será apagado do armazenamento.'))
+async function evRmAnexo(aid, id) {
+    if (
+        await confirma(
+            'O arquivo será apagado do armazenamento. Esta ação não pode ser desfeita.',
+            'Remover arquivo',
+            'Remover arquivo',
+            true
+        )
+    )
         run(async () => {
             await api({ op: 'anexo_remover', anexo_id: aid }, '/api/eventos');
             evAnexos(id);
             evLoad(1);
+            toast('Arquivo removido');
         });
 }
 
@@ -530,7 +539,7 @@ function evSv(id) {
         L_ = EV_LETRA[t];
     const ani = L_ == 'N',
         dn = ani ? `2000-${g('mes')}-${g('dia')}` : '';
-    if (ani && new Date(dn + 'T12:00').getDate() != +g('dia')) return alert('Este dia não existe no mês escolhido.');
+    if (ani && new Date(dn + 'T12:00').getDate() != +g('dia')) return aviso('Este dia não existe no mês escolhido.');
     const b = {
         id,
         tipo: t,
@@ -549,7 +558,7 @@ function evSv(id) {
         cancelado: !!($('#e_cancelado') && $('#e_cancelado').checked),
         participantes: [...document.querySelectorAll('#e_part input:checked')].map(x => +x.value),
     };
-    if (b.fim < b.inicio) return alert('A data de fim não pode ser anterior à de início.');
+    if (b.fim < b.inicio) return aviso('A data de fim não pode ser anterior à de início.');
     const arq =
         'RTO'.includes(L_) && $('#e_ata')
             ? [
@@ -561,22 +570,28 @@ function evSv(id) {
               ]
             : [];
     const er = arq.map(x => evArqErro(x[0])).filter(Boolean);
-    if (er.length) return alert(er.join('\n'));
+    if (er.length) return aviso(er.join('\n'), 'Arquivo não aceito');
     umaVez(async () => {
         const j = await api({ op: 'save', item: b }, '/api/eventos');
         await evLoad(1);
         evDet(j.id, j.avisos);
         if (tab == 'cal') draw();
+        toast(b.id ? 'Evento atualizado' : 'Evento cadastrado');
         if (arq.length) await evEnviarVarios(j.id, arq);
     });
 }
 // Exclui um evento
-function evRm(id) {
+async function evRm(id) {
     const e = EV.find(x => x.id == id),
         n = e ? Object.values(e.anexos || {}).reduce((s, x) => s + x, 0) : 0;
     if (
-        confirm(
-            'Excluir este evento' + (n ? ` e os ${n} arquivo(s) anexado(s)` : '') + '? Esta ação não pode ser desfeita.'
+        await confirma(
+            'O evento' +
+                (n ? ` e os ${n} arquivo(s) anexado(s) serão apagados` : ' será apagado') +
+                '. Esta ação não pode ser desfeita.',
+            'Excluir evento',
+            'Excluir evento',
+            true
         )
     )
         run(async () => {
@@ -584,6 +599,7 @@ function evRm(id) {
             $('#dd').close();
             await evLoad(1);
             if (tab == 'cal') draw();
+            toast('Evento excluído');
         });
 }
 
@@ -677,8 +693,8 @@ function evExpGo(kind) {
         t = $('#x_t').value,
         sv = $('#x_s').value,
         canc = $('#x_c').checked;
-    if (!a || !b || b < a) return alert('Informe um período válido.');
-    if (dDias(a, b) > 731) return alert('Escolha um período de até 2 anos.');
+    if (!a || !b || b < a) return aviso('Informe um período válido.');
+    if (dDias(a, b) > 731) return aviso('Escolha um período de até 2 anos.');
     const noPer = e => {
         if (!evAniv(e)) return e.inicio <= b && e.fim >= a;
         for (let d = a; d <= b; d = addDias(d, 1)) if (evOcorre(e, d)) return true;
@@ -698,7 +714,7 @@ function evExpGo(kind) {
             (x.hora_inicio || '').localeCompare(y.hora_inicio || '') ||
             x.id - y.id
     );
-    if (!l.length) return alert('Nenhum evento no período com esses filtros.');
+    if (!l.length) return aviso('Nenhum evento no período com esses filtros.', 'Nada para exportar');
     const tipos = (t ? [t] : EV_TIPOS).filter(x => l.some(e => e.tipo == x)),
         sec = tipos.map(x => {
             const c = evExpCols(x),
@@ -708,6 +724,7 @@ function evExpGo(kind) {
     const per = `${fmt(a)} a ${fmt(b)}`,
         sn = sv ? ' · ' + (EVU.find(u => u.id == sv) || {}).nome : '',
         tit = 'Calendário da equipe' + (t ? ' · ' + t : '');
+    regExp(kind == 'x' ? 'Excel' : 'PDF', tit + ' · ' + per + sn);
     if (kind == 'x') {
         const wb = XLSX.utils.book_new();
         if (sec.length > 1)

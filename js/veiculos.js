@@ -197,7 +197,7 @@ function veLoad(silencioso) {
                 VEL = sg;
                 if (vis) draw();
             } catch (e) {
-                if (!silencioso) alert('Erro: ' + e.message);
+                if (!silencioso) aviso(e.message, 'Não foi possível carregar os veículos', 'erro');
             } finally {
                 VEP = null;
             }
@@ -436,12 +436,12 @@ async function veUp(id) {
         parte = $('#vf_parte').value.trim(),
         bt = $('#vf_env'),
         st = () => $('#vf_st');
-    if (parte.length < 2) return alert('Informe a parte do veículo mostrada na foto.');
-    if (!fs.length) return alert('Escolha a foto.');
+    if (parte.length < 2) return aviso('Informe a parte do veículo mostrada na foto.');
+    if (!fs.length) return aviso('Escolha a foto.');
     const er = fs
         .filter(f => !/\.(jpe?g|png)$/i.test(f.name) || f.size > 25 * 1024 * 1024)
         .map(f => f.name + ': envie fotos JPG ou PNG de até 25 MB');
-    if (er.length) return alert(er.join('\n'));
+    if (er.length) return aviso(er.join('\n'), 'Foto não aceita');
     bt.disabled = true;
     const erros = [];
     try {
@@ -461,11 +461,12 @@ async function veUp(id) {
     }
     await veLoad(1);
     veFotos(id);
-    if (erros.length) alert('Não foi possível enviar:\n' + erros.join('\n'));
+    if (erros.length) aviso(erros.join('\n'), 'Não foi possível enviar', 'erro');
+    else toast(fs.length > 1 ? fs.length + ' fotos enviadas' : 'Foto enviada');
 }
 // Troca a parte do veículo informada numa foto
-function veParte(fid, id, atual) {
-    const p = prompt('Parte do veículo mostrada nesta foto:', atual);
+async function veParte(fid, id, atual) {
+    const p = await pergunta('Parte do veículo mostrada nesta foto:', 'Alterar legenda da foto', atual);
     if (p == null || p.trim() == atual) return;
     run(async () => {
         await api({ op: 'foto_parte', foto_id: fid, parte: p.trim() }, '/api/veiculos');
@@ -473,12 +474,20 @@ function veParte(fid, id, atual) {
     });
 }
 // Remove uma foto (quem enviou ou o administrador)
-function veRmFoto(fid, id) {
-    if (confirm('Remover esta foto?'))
+async function veRmFoto(fid, id) {
+    if (
+        await confirma(
+            'A foto será apagada do armazenamento. Esta ação não pode ser desfeita.',
+            'Remover foto',
+            'Remover foto',
+            true
+        )
+    )
         run(async () => {
             await api({ op: 'foto_remover', foto_id: fid }, '/api/veiculos');
             await veLoad(1);
             veFotos(id);
+            toast('Foto removida');
         });
 }
 
@@ -554,16 +563,28 @@ function veSv(id) {
         await veLoad(1);
         veDet(j.id);
         if (tab == 'veic' || tab == 'vproc') draw();
+        toast(b.id ? 'Veículo atualizado' : 'Veículo cadastrado');
     });
 }
 // Exclui um veículo, com as fotos (somente administrador)
-function veRm(id) {
-    if (confirm('Excluir este veículo, as fotos e a Lista de Verificação dele?'))
+async function veRm(id) {
+    const v = VE.find(x => x.id == id);
+    if (
+        await confirma(
+            'O veículo' +
+                (v && v.placa ? ' ' + v.placa : '') +
+                ', as fotos e a Lista de Verificação dele serão apagados. Esta ação não pode ser desfeita.',
+            'Excluir veículo',
+            'Excluir veículo',
+            true
+        )
+    )
         run(async () => {
             await api({ op: 'del', id }, '/api/veiculos');
             $('#dd').close();
             await veLoad(1);
             if (tab == 'veic' || tab == 'vproc') draw();
+            toast('Veículo excluído');
         });
 }
 
@@ -645,6 +666,7 @@ function veVistSv(id, imp) {
         await veLoad(1);
         veDet(id);
         if (tab == 'veic') draw();
+        toast('Lista de Verificação registrada');
         if (imp) veImprimir(id);
     });
 }
@@ -653,6 +675,7 @@ function veVistSv(id, imp) {
 function veImprimir(id) {
     const v = VE.find(x => x.id == id);
     if (!v) return;
+    regExp('PDF', 'Lista de Verificação do veículo ' + (v.placa || v.tombo || '#' + v.id));
     const s = v.vistoria || {},
         it = s.itens || [],
         av = s.avarias || {},
@@ -926,9 +949,14 @@ function veImpPrev() {
     $('#vi_go').innerHTML = `${ic('up', 15)} Importar ${nv.length} veículo(s)`;
 }
 // Importação: envia os veículos novos ao servidor
-function veImpGo() {
+async function veImpGo() {
     const nv = VEI && VEI.linhas.filter(x => !x.ja);
-    if (!nv || !nv.length || !confirm(`Importar ${nv.length} veículo(s)?`)) return;
+    if (
+        !nv ||
+        !nv.length ||
+        !(await confirma(`${nv.length} veículo(s) serão gravados no Hub.`, 'Importar veículos', 'Importar'))
+    )
+        return;
     const itens = nv.map(x => {
         const o = { linha: x.linha };
         [
@@ -953,11 +981,13 @@ function veImpGo() {
         $('#dd').close();
         VEI = null;
         await veLoad();
-        alert(
-            `${j.importados} veículo(s) importado(s).` +
-                (j.ignorados ? ` ${j.ignorados} já estavam no Hub e foram ignorados.` : '')
-        );
         draw();
+        aviso(
+            `${j.importados} veículo(s) importado(s).` +
+                (j.ignorados ? ` ${j.ignorados} já estavam no Hub e foram ignorados.` : ''),
+            'Importação concluída',
+            'ok'
+        );
     });
 }
 
