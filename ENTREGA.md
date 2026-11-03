@@ -15,15 +15,18 @@
 
 **Botão Baixar prontuário** (no topo do detalhe do veículo): abre a folha A4 em paisagem para imprimir ou salvar em PDF, com o brasão do Governo, nº de ordem, órgão, placa em destaque, os dados do cadastro, as caixas dos 8 documentos (marcadas com X quando o veículo possui o documento) e a data de emissão. A emissão fica registrada no log como exportação em PDF.
 
-**Nº de ordem:** novo campo do veículo, igual à coluna "#" da planilha do depósito. Ele aparece no detalhe, no formulário, na primeira coluna da lista e no Excel.
-- Para preencher os veículos que já estão no Hub, o administrador abre Veículos > Importar planilha e escolhe a mesma planilha. A prévia mostra quantos veículos terão o nº de ordem atualizado. O botão "Atualizar nº de ordem" grava só esse número e não altera nenhum outro dado.
-- Na importação de veículos novos, o nº de ordem já entra junto.
+**Nº de ordem automático:** novo campo do veículo, preenchido pelo sistema. Ele aparece no detalhe, na primeira coluna da lista, no Excel e no prontuário.
+- Na publicação, os veículos já cadastrados recebem a numeração pela ordem em que estão no banco (1, 2, 3…). Como a planilha foi importada na ordem das linhas, os números coincidem com a coluna "#" dela (no teste, o NOX-0679 recebeu o 76).
+- Cada veículo novo, cadastrado pelo formulário ou pela importação, recebe o maior número já usado mais 1. O número não é digitado nem alterado no formulário.
+- A exclusão de um veículo não renumera os outros, para que o número impresso no prontuário continue valendo.
+
+**Órgão em uma linha no prontuário:** o nome do órgão (e também o nº de ordem e a placa) nunca quebra de linha. Quando o texto é maior que a caixa, a letra diminui até caber.
 
 **Banco:** as colunas `veiculos.ordem` e `veiculos.documentos` e a tabela `veiculo_documentos` são criadas sozinhas no primeiro acesso. O registro está em `db/migracao_008_veiculos_documentos.sql`. Ao excluir um veículo, os arquivos dos documentos também são apagados do armazenamento.
 
 **Arquivos alterados:** `js/veiculos.js`, `api/veiculos.js`, `lib/comum.js`, `index.html` (estilos), `js/base.js` (versão), `img/prontuario-cabecalho.png` e `img/prontuario-rodape.png` (novas), `db/migracao_008_veiculos_documentos.sql` (novo), `GUIA-DO-CODIGO.md`.
 
-**Testes (local, com Postgres e simulador do Blob):** importação da planilha de 01/09/2026 (78 veículos, o NOX-0679 recebeu o nº 76); reimportação atualizando só o nº de ordem; marcação e desmarcação de documentos; envio de PDF e JPG; recusa de arquivo falso e de documento inválido; bloqueio ao desmarcar documento com arquivo; exclusão do veículo apagando fotos e documentos; nº de ordem inválido recusado pelo servidor; prontuário gerado em 1 página A4 paisagem; tela no celular sem rolagem lateral (só as abas rolam). O envio real ao Vercel Blob ainda não foi testado na Vercel.
+**Testes (local, com Postgres e simulador do Blob):** importação da planilha de 01/09/2026 (78 veículos); numeração automática dos já cadastrados pela ordem do banco (1 a 78, NOX-0679 = 76) e dos novos pelo formulário e pela importação (79, 80, 81); prontuário com órgão curto, SSP-AM e nome longo, sempre em uma linha; marcação e desmarcação de documentos; envio de PDF e JPG; recusa de arquivo falso e de documento inválido; bloqueio ao desmarcar documento com arquivo; exclusão do veículo apagando fotos e documentos; prontuário gerado em 1 página A4 paisagem; tela no celular sem rolagem lateral (só as abas rolam). O envio real ao Vercel Blob ainda não foi testado na Vercel.
 
 ## Versão 7.5: mensagens do sistema, troca obrigatória de senha e encerramento por inatividade
 

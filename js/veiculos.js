@@ -625,7 +625,6 @@ function veEd(id) {
         ? VE.find(x => x.id == id)
         : {
               id: 0,
-              ordem: '',
               orgao: '',
               processo_numero: '',
               placa: '',
@@ -649,8 +648,7 @@ function veEd(id) {
     $('#dd').innerHTML =
         `<h2><span>${id ? 'Editar veículo' : 'Novo veículo'}</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2><form class="fm" onsubmit="event.preventDefault();veSv(${v.id})">
 <h3 class="kt w" style="margin:0">Identificação</h3>
-${inp('ordem', 'Nº de ordem (planilha do depósito)', 'type="number" min="1" max="99999" step="1" placeholder="Ex.: 76"')}${inp('placa', 'Placa', 'maxlength="8" placeholder="ABC1234 ou ABC1D23" style="text-transform:uppercase"')}
-${inp('tombo', 'Tombo', 'maxlength="50"')}
+${inp('placa', 'Placa', 'maxlength="8" placeholder="ABC1234 ou ABC1D23" style="text-transform:uppercase"')}${inp('tombo', 'Tombo', 'maxlength="50"')}
 ${inp('tipo', 'Tipo', 'list="dl_vt" maxlength="60" placeholder="Ex.: Automóvel"')}
 ${inp('modelo', 'Modelo', 'maxlength="120" required placeholder="Ex.: Gol 1.0"')}${inp('ano', 'Ano (fabricação/modelo)', 'maxlength="9" placeholder="Ex.: 2010/2011"')}
 ${inp('chassi', 'Chassi', 'maxlength="30" style="text-transform:uppercase"')}${inp('renavam', 'RENAVAM', 'maxlength="14" inputmode="numeric" placeholder="11 números"')}
@@ -660,7 +658,7 @@ ${inp('orgao', 'Órgão', 'list="dl_vo" maxlength="200"')}${inp('processo_numero
 <label>Situação documental<select id="v_situacao_doc"><option value="">Não informada</option>${VE_SIT.map(s => `<option ${v.situacao_doc == s ? 'selected' : ''}>${s}</option>`).join('')}</select></label>${inp('destinacao', 'Destinação', 'list="dl_vd" maxlength="100"')}
 ${inp('entrada', 'Entrada no depósito (opcional)', `type="date" max="${TS()}"`)}${inp('saida', 'Saída do depósito', `type="date" max="${TS()}"`)}
 <label class="w">Observações<textarea id="v_obs" rows="2" maxlength="2000">${esc(v.obs || '')}</textarea></label>
-<p class="nt w" style="margin:0">Deixe a saída em branco enquanto o veículo estiver no depósito. Informe pelo menos um identificador: placa, chassi, RENAVAM ou tombo. Se o processo já estiver cadastrado no Hub, o vínculo é feito pelo número, mesmo que ele seja cadastrado depois.</p>
+<p class="nt w" style="margin:0">${id ? `Nº de ordem ${v.ordem ?? '—'} (definido pelo sistema). ` : 'O nº de ordem é definido pelo sistema ao salvar, na sequência do último veículo cadastrado. '}Deixe a saída em branco enquanto o veículo estiver no depósito. Informe pelo menos um identificador: placa, chassi, RENAVAM ou tombo. Se o processo já estiver cadastrado no Hub, o vínculo é feito pelo número, mesmo que ele seja cadastrado depois.</p>
 <div class="w" style="display:flex;gap:8px"><button class="btn p">${ic('ok', 15)} Salvar</button><button type="button" class="btn" onclick="${id ? `veDet(${id})` : `$('#dd').close()`}">Cancelar</button></div></form>
 ${dl('dl_vt', L.tipos_veiculo || VE_TIPOS_PAD)}${dl('dl_vd', L.destinacoes || VE_DEST_PAD)}${dl('dl_vo', L.orgaos)}${dl(
             'dl_vpr',
@@ -673,7 +671,6 @@ ${dl('dl_vt', L.tipos_veiculo || VE_TIPOS_PAD)}${dl('dl_vd', L.destinacoes || VE
 function veSv(id) {
     const b = { id };
     [
-        'ordem',
         'placa',
         'tombo',
         'tipo',
@@ -891,9 +888,9 @@ html,body{margin:0;background:#fff}body{font-family:Arial,Helvetica,sans-serif;c
 .fl{width:277mm;height:193mm;display:flex;flex-direction:column}
 .cb{display:flex;align-items:center;border-bottom:1.2mm solid #000;padding-bottom:2mm}.cb img{height:14mm}.cb h1{flex:1;text-align:right;font-size:18pt;letter-spacing:1.5pt;margin:0}
 .tp{display:flex;gap:4mm;margin-top:4mm;height:40mm}.cx{border:.8mm solid #000;display:flex;flex-direction:column;justify-content:center;text-align:center}
-.cx small{font-size:9pt;font-weight:bold;letter-spacing:.6pt}.cx b{font-size:46pt;line-height:1.05}
-.od{width:40mm}.og{width:62mm}.og b{font-size:${(v.orgao || '').length > 6 ? 26 : 46}pt;word-break:break-word}
-.pl{flex:1;border:1.4mm solid #000;border-radius:3.5mm;overflow:hidden;justify-content:flex-start}.pl small{background:#000;color:#fff;letter-spacing:3pt;padding:1.2mm 0}.pl b{flex:1;display:flex;align-items:center;justify-content:center;font-size:${vePlaca(v.placa).length > 8 ? 54 : 66}pt;letter-spacing:2pt;white-space:nowrap}
+.cx small{font-size:9pt;font-weight:bold;letter-spacing:.6pt}.cx b{font-size:46pt;line-height:1.05;white-space:nowrap;overflow:hidden;padding:0 2mm}
+.od{width:40mm}.og{width:76mm}
+.pl{flex:1;border:1.4mm solid #000;border-radius:3.5mm;overflow:hidden;justify-content:flex-start}.pl small{background:#000;color:#fff;letter-spacing:3pt;padding:1.2mm 0}.pl b{flex:1;display:flex;align-items:center;justify-content:center;font-size:66pt;letter-spacing:2pt}
 .md{display:flex;gap:4mm;margin-top:4mm;flex:1;min-height:0}
 table{border-collapse:collapse;width:100%;height:100%}th,td{border:.4mm solid #000;padding:0 3mm;height:9.4mm;font-size:14pt;text-align:left;vertical-align:middle}
 th{width:30%;background:#e6e6e6;font-size:10pt;letter-spacing:.3pt}td{font-weight:bold}.dt{flex:1}
@@ -910,6 +907,11 @@ tr.ob td{height:16mm;vertical-align:top;padding-top:2mm;font-size:12pt;white-spa
 <div class="rd"><img src="${u}prontuario-rodape.png" alt="Secretaria de Administração e Gestão"><span>Emitido em ${fmt(TS())} às ${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')} pelo Hub Patrimonial</span></div>
 </div></body></html>`);
     w.document.close();
+    // Órgão, nº de ordem e placa sempre em uma linha: a letra diminui até o texto caber na caixa
+    w.document.querySelectorAll('.cx b').forEach(b => {
+        let t = parseFloat(w.getComputedStyle(b).fontSize);
+        while (b.scrollWidth > b.clientWidth && t > 10) b.style.fontSize = (t -= 2) + 'px';
+    });
     // Espera as imagens carregarem antes de abrir a impressão
     const imgs = [...w.document.images].map(i => (i.complete ? null : new Promise(ok => (i.onload = i.onerror = ok))));
     Promise.all(imgs).then(() =>
@@ -972,7 +974,7 @@ function veImp() {
     VEI = null;
     $('#dd').innerHTML =
         `<h2><span>Importar veículos</span><button class="btn s" onclick="$('#dd').close()">${ic('x', 15)}</button></h2>
-            <div class="fm"><label class="w">Planilha (.xlsx)<input type="file" id="vi_f" accept=".xlsx,.xls" onchange="veImpLer()"></label><div class="w ib" id="vi_pv">A primeira aba deve ter um cabeçalho com as colunas # (nº de ordem), UNIDADE (ou ÓRGÃO), PROCESSO, PLACA, TOMBO, TIPO, MODELO, ANO, CHASSI, RENAVAM, ÚLTIMO LICENCIAMENTO e DESTINAÇÃO, como na planilha de controle do depósito. Colunas SITUAÇÃO DOCUMENTAL e OBSERVAÇÕES também são lidas, se existirem. Nada é gravado antes de você conferir a prévia.</div>
+            <div class="fm"><label class="w">Planilha (.xlsx)<input type="file" id="vi_f" accept=".xlsx,.xls" onchange="veImpLer()"></label><div class="w ib" id="vi_pv">A primeira aba deve ter um cabeçalho com as colunas UNIDADE (ou ÓRGÃO), PROCESSO, PLACA, TOMBO, TIPO, MODELO, ANO, CHASSI, RENAVAM, ÚLTIMO LICENCIAMENTO e DESTINAÇÃO, como na planilha de controle do depósito. Colunas SITUAÇÃO DOCUMENTAL e OBSERVAÇÕES também são lidas, se existirem. Nada é gravado antes de você conferir a prévia.</div>
             </div>
             <div class="ac"><button class="btn p" id="vi_go" disabled onclick="veImpGo()">${ic('up', 15)} Importar</button><button class="btn" onclick="$('#dd').close()">Cancelar</button></div>`;
     if (!$('#dd').open) $('#dd').showModal();
@@ -989,10 +991,6 @@ async function veImpLer() {
         const h = m[hi].map(nh),
             ix = {};
         Object.entries(VE_IMP_COL).forEach(([c, ns]) => (ix[c] = h.findIndex(x => ns.includes(x))));
-        // Nº de ordem: coluna "#" (como na planilha do depósito), "Nº", "Nº de ordem" ou "Ordem"
-        ix.ordem = m[hi].findIndex(
-            (x, i) => String(x ?? '').trim() == '#' || ['n', 'no', 'ordem', 'nordem', 'numerodeordem'].includes(h[i])
-        );
         const g = (r, c) => (ix[c] < 0 ? '' : r[ix[c]]),
             t = (r, c) => {
                 const v = String(g(r, c) ?? '')
@@ -1022,12 +1020,6 @@ async function veImpLer() {
                 .filter(([r]) => ['placa', 'modelo', 'chassi', 'renavam'].some(c => t(r, c)))
                 .map(([r, n]) => {
                     const x = { linha: n, erros: [], ajustes: [], avisos: [], obs: t(r, 'obs') };
-                    const od = t(r, 'ordem');
-                    x.ordem = od === '' ? '' : Number(od);
-                    if (od !== '' && !(Number.isInteger(x.ordem) && x.ordem >= 1 && x.ordem <= 99999)) {
-                        x.erros.push(`nº de ordem "${od}" inválido`);
-                        x.ordem = '';
-                    }
                     x.orgao = t(r, 'orgao');
                     x.processo_numero = t(r, 'processo');
                     if (x.processo_numero.includes('_')) {
@@ -1086,11 +1078,7 @@ async function veImpLer() {
                     if (rep) x.erros.push(`mesmo identificador da linha ${vistos[rep]}`);
                     ks.forEach(k => (vistos[k] = vistos[k] || n));
                     const ja = ks.map(k => existe[k]).find(Boolean);
-                    if (ja) {
-                        x.ja = ja.id;
-                        // Já cadastrado: só o nº de ordem pode ser atualizado
-                        if (x.ordem !== '' && ja.ordem != x.ordem) x.nova_ordem = 1;
-                    }
+                    if (ja) x.ja = ja.id;
                     x.cadastrado = !!(x.processo_numero && D.some(p => nh(p.numero) == nh(x.processo_numero)));
                     return x;
                 }),
@@ -1112,7 +1100,6 @@ function veImpPrev() {
         av = l.filter(x => x.avisos.length),
         ja = l.filter(x => x.ja),
         nv = l.filter(x => !x.ja),
-        no = ja.filter(x => x.nova_ordem).length,
         cp = nv.filter(x => x.cadastrado).length,
         np = nv.filter(x => x.processo_numero && !x.cadastrado).length,
         sp = nv.filter(x => !x.processo_numero).length,
@@ -1125,9 +1112,6 @@ function veImpPrev() {
         `<div class="pl" style="max-height:170px;margin-top:6px;font-size:12.5px">${xs.map(x => `<div style="padding:4px 0;border-bottom:1px solid var(--bd)"><b>Linha ${x.linha}</b> (${esc(vePlaca(x.placa) || x.modelo)}): ${esc(f(x).join('; '))}</div>`).join('')}</div>`;
     $('#vi_pv').innerHTML =
         `<b>${l.length} veículo(s) na planilha</b>: ${nv.length} novo(s)${ja.length ? ` e ${ja.length} já cadastrado(s) no Hub, que serão ignorados` : ''}.` +
-        (no
-            ? `<br><b>${no} veículo(s) já cadastrado(s) terão o nº de ordem atualizado</b> conforme a coluna # da planilha (os demais dados deles não mudam).`
-            : '') +
         (nv.length
             ? `<br><small>Órgão: ${org || '—'}<br>Processo: ${cp} com processo já cadastrado no Hub (vínculo automático), ${np} com processo ainda não cadastrado (o número fica gravado e o vínculo acontece quando o processo for cadastrado)${sp ? `, ${sp} sem processo` : ''}.<br>Tipo na planilha → tipo no Hub: ${Object.entries(
                   VEI.tipos
@@ -1145,34 +1129,21 @@ function veImpPrev() {
             ? `<div style="margin-top:12px"><b>${av.length} linha(s) com aviso</b> (são importadas assim mesmo; vale conferir no documento do veículo):${lista(av, x => x.avisos)}</div>`
             : '') +
         `<p class="nt" style="margin:12px 0 0">RENAVAM com menos de 11 números recebe zeros à esquerda. Todos entram como "no depósito", sem data de entrada${l.some(x => x.situacao_doc) ? '' : ' e com a situação documental "Não informada"'}. Os já cadastrados (mesma placa, chassi, RENAVAM ou tombo) são ignorados, então importar o mesmo arquivo de novo não duplica.</p>`;
-    $('#vi_go').disabled = !!er.length || !(nv.length || no);
-    $('#vi_go').innerHTML = nv.length
-        ? `${ic('up', 15)} Importar ${nv.length} veículo(s)`
-        : `${ic('up', 15)} Atualizar nº de ordem de ${no} veículo(s)`;
+    $('#vi_go').disabled = !!er.length || !nv.length;
+    $('#vi_go').innerHTML = `${ic('up', 15)} Importar ${nv.length} veículo(s)`;
 }
 // Importação: envia os veículos novos ao servidor
 async function veImpGo() {
-    const nv = VEI && VEI.linhas.filter(x => !x.ja),
-        ordens = VEI ? VEI.linhas.filter(x => x.nova_ordem).map(x => ({ id: x.ja, ordem: x.ordem })) : [];
+    const nv = VEI && VEI.linhas.filter(x => !x.ja);
     if (
         !nv ||
-        !(nv.length || ordens.length) ||
-        !(await confirma(
-            [
-                nv.length ? `${nv.length} veículo(s) serão gravados no Hub.` : '',
-                ordens.length ? `${ordens.length} veículo(s) já cadastrado(s) terão o nº de ordem atualizado.` : '',
-            ]
-                .filter(Boolean)
-                .join(' '),
-            'Importar veículos',
-            'Importar'
-        ))
+        !nv.length ||
+        !(await confirma(`${nv.length} veículo(s) serão gravados no Hub.`, 'Importar veículos', 'Importar'))
     )
         return;
     const itens = nv.map(x => {
         const o = { linha: x.linha };
         [
-            'ordem',
             'orgao',
             'processo_numero',
             'placa',
@@ -1190,15 +1161,14 @@ async function veImpGo() {
         return o;
     });
     umaVez(async () => {
-        const j = await api({ op: 'importar', itens, ordens }, '/api/veiculos');
+        const j = await api({ op: 'importar', itens }, '/api/veiculos');
         $('#dd').close();
         VEI = null;
         await veLoad();
         draw();
         aviso(
             `${j.importados} veículo(s) importado(s).` +
-                (j.ignorados ? ` ${j.ignorados} já estavam no Hub e foram ignorados.` : '') +
-                (j.ordens ? ` Nº de ordem atualizado em ${j.ordens} veículo(s).` : ''),
+                (j.ignorados ? ` ${j.ignorados} já estavam no Hub e foram ignorados.` : ''),
             'Importação concluída',
             'ok'
         );

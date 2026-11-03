@@ -1,9 +1,15 @@
--- Hub Patrimonial v7.6: nº de ordem da planilha, documentos do veículo e prontuário
+-- Hub Patrimonial v7.6: nº de ordem automático, documentos do veículo e prontuário
 -- O sistema cria estas alterações sozinho na primeira requisição (lib/comum.js). Este arquivo serve de registro
 -- e para quem preferir rodar a alteração manualmente no Neon antes de publicar.
 
--- Nº de ordem do veículo na planilha do depósito (coluna #), impresso no prontuário
+-- Nº de ordem do veículo, impresso no prontuário. É definido pelo sistema: novos veículos recebem o maior número + 1.
 alter table veiculos add column if not exists ordem int;
+-- Veículos já cadastrados recebem a sequência pela ordem de cadastro (id)
+update veiculos v set ordem = x.n
+    from (select id, (select coalesce(max(ordem), 0) from veiculos) + row_number() over (order by id) as n
+        from veiculos
+        where ordem is null) x
+    where v.id = x.id;
 
 -- Documentos que o veículo possui: {"crlv": true, "dut": true, ...}
 alter table veiculos add column if not exists documentos jsonb not null default '{}';

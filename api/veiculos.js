@@ -69,18 +69,9 @@ function ano(v, nome) {
     return n;
 }
 
-// Nº de ordem na planilha do depósito: opcional, número inteiro positivo
-function ordem(v) {
-    if (v === '' || v == null) return null;
-    const n = Number(v);
-    if (!Number.isInteger(n) || n < 1 || n > 99999) throw new Erro('Nº de ordem inválido: use um número inteiro de 1 a 99999');
-    return n;
-}
-
 // Confere e limpa um veículo recebido
 function validar(item) {
     const v = {
-        ordem: ordem(item.ordem),
         orgao: txt(item.orgao, 200, 'Órgão'),
         processo: txt(item.processo_numero, 100, 'Processo').replace(/\s+/g, ' '),
         placa: soLetrasNumeros(item.placa),
@@ -219,13 +210,13 @@ module.exports = async (req, res) => {
             let novo = id;
             if (id) {
                 await veiculo(id);
-                await sql`update veiculos set ordem = ${v.ordem}, orgao = ${v.orgao}, processo = ${v.processo}, placa = ${v.placa}, tombo = ${v.tombo}, tipo = ${v.tipo}, modelo = ${v.modelo}, ano = ${v.ano}, chassi = ${v.chassi}, renavam = ${v.renavam},
+                await sql`update veiculos set orgao = ${v.orgao}, processo = ${v.processo}, placa = ${v.placa}, tombo = ${v.tombo}, tipo = ${v.tipo}, modelo = ${v.modelo}, ano = ${v.ano}, chassi = ${v.chassi}, renavam = ${v.renavam},
           ultimo_licenciamento = ${v.ultimo_licenciamento}, destinacao = ${v.destinacao}, situacao_doc = ${v.situacao_doc}, entrada = ${v.entrada || null}, saida = ${v.saida || null}, obs = ${v.obs}, atualizado_em = now()
                     where id = ${id}`;
             } else {
                 novo = (
                     await sql`insert into veiculos(ordem, orgao, processo, placa, tombo, tipo, modelo, ano, chassi, renavam, ultimo_licenciamento, destinacao, situacao_doc, entrada, saida, obs, criado_por)
-                        values (${v.ordem}, ${v.orgao}, ${v.processo}, ${v.placa}, ${v.tombo}, ${v.tipo}, ${v.modelo}, ${v.ano}, ${v.chassi}, ${v.renavam}, ${v.ultimo_licenciamento}, ${v.destinacao}, ${v.situacao_doc}, ${v.entrada || null}, ${v.saida || null}, ${v.obs}, ${me.id})
+                        values ((select coalesce(max(ordem), 0) + 1 from veiculos), ${v.orgao}, ${v.processo}, ${v.placa}, ${v.tombo}, ${v.tipo}, ${v.modelo}, ${v.ano}, ${v.chassi}, ${v.renavam}, ${v.ultimo_licenciamento}, ${v.destinacao}, ${v.situacao_doc}, ${v.entrada || null}, ${v.saida || null}, ${v.obs}, ${me.id})
                         returning id`
                 )[0].id;
             }
@@ -238,7 +229,7 @@ module.exports = async (req, res) => {
         if (b.op === 'importar') {
             if (!adm) throw new Erro('Somente o administrador pode importar veículos', 403);
             const itens = Array.isArray(b.itens) ? b.itens : [];
-            if (!itens.length && !(Array.isArray(b.ordens) && b.ordens.length)) throw new Erro('Nenhuma linha para importar');
+            if (!itens.length) throw new Erro('Nenhuma linha para importar');
             if (itens.length > 2000) throw new Erro('Importe no máximo 2.000 veículos por vez');
             const l = itens.map((x, i) => {
                 try {
@@ -268,29 +259,19 @@ module.exports = async (req, res) => {
             });
             if (novos.length) {
                 const col = f => novos.map(f);
+                // Nº de ordem automático: continua a sequência, na ordem das linhas da planilha
                 await sql`insert into veiculos(ordem, orgao, processo, placa, tombo, tipo, modelo, ano, chassi, renavam, ultimo_licenciamento, destinacao, situacao_doc, entrada, saida, obs, criado_por)
-                    select x.*, ${me.id}::int
-                        from unnest(${col(v => v.ordem)}::int[], ${col(v => v.orgao)}::text[], ${col(v => v.processo)}::text[], ${col(v => v.placa)}::text[], ${col(v => v.tombo)}::text[], ${col(v => v.tipo)}::text[],
+                    select (select coalesce(max(ordem), 0) from veiculos) + x.n, x.orgao, x.processo, x.placa, x.tombo, x.tipo, x.modelo, x.ano, x.chassi, x.renavam, x.ultimo_licenciamento, x.destinacao, x.situacao_doc, x.entrada, x.saida, x.obs, ${me.id}::int
+                        from unnest(${col(v => v.orgao)}::text[], ${col(v => v.processo)}::text[], ${col(v => v.placa)}::text[], ${col(v => v.tombo)}::text[], ${col(v => v.tipo)}::text[],
               ${col(v => v.modelo)}::text[], ${col(v => v.ano)}::text[], ${col(v => v.chassi)}::text[], ${col(v => v.renavam)}::text[], ${col(v => v.ultimo_licenciamento)}::int[],
-              ${col(v => v.destinacao)}::text[], ${col(v => v.situacao_doc)}::text[], ${col(v => v.entrada || null)}::date[], ${col(v => v.saida || null)}::date[], ${col(v => v.obs)}::text[]) as x`;
-            }
-            // Veículos que já estão no Hub: só o nº de ordem é atualizado, quando a planilha traz um número diferente (v7.6)
-            const ords = (Array.isArray(b.ordens) ? b.ordens : []).slice(0, 2000).map(x => ({ id: +x.id || 0, ordem: ordem(x.ordem) }));
-            let atualizados = 0;
-            if (ords.length) {
-                const r = await sql`update veiculos v set ordem = x.ordem, atualizado_em = now()
-                    from unnest(${ords.map(x => x.id)}::int[], ${ords.map(x => x.ordem)}::int[]) as x(id, ordem)
-                    where v.id = x.id and x.ordem is not null and v.ordem is distinct from x.ordem
-                    returning v.id`;
-                atualizados = r.length;
+              ${col(v => v.destinacao)}::text[], ${col(v => v.situacao_doc)}::text[], ${col(v => v.entrada || null)}::date[], ${col(v => v.saida || null)}::date[], ${col(v => v.obs)}::text[]) with ordinality as x(orgao, processo, placa, tombo, tipo, modelo, ano, chassi, renavam, ultimo_licenciamento, destinacao, situacao_doc, entrada, saida, obs, n)`;
             }
             await registrar(
                 me,
                 'veiculos_importados',
-                `${novos.length} importado(s), ${l.length - novos.length} já cadastrado(s) ignorado(s)` +
-                    (atualizados ? `, nº de ordem atualizado em ${atualizados}` : '')
+                `${novos.length} importado(s), ${l.length - novos.length} já cadastrado(s) ignorado(s)`
             );
-            return res.json({ importados: novos.length, ignorados: l.length - novos.length, ordens: atualizados });
+            return res.json({ importados: novos.length, ignorados: l.length - novos.length });
         }
 
         if (b.op === 'vistoria') {
