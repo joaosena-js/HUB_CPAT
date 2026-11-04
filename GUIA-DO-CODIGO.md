@@ -125,6 +125,7 @@ Os prefixos ajudam a saber de qual módulo é cada função: `at` é de atendime
 | Prazos de Atenção e Crítico, sugestões de tipo e destinação de veículo | Pela própria tela, em Administração > Listas e Parâmetros. Não precisa mexer no código |
 | Itens da Lista de Verificação de Veículo | `js/veiculos.js` (`VE_ITENS`) e `api/veiculos.js` (`ITENS`, a quantidade) |
 | Situação documental dos veículos | `js/veiculos.js` (`VE_SIT`) e `api/veiculos.js` (`SITUACOES_DOC`) |
+| Ordem da lista de veículos (padrão pelo Nº, do menor para o maior) | `js/veiculos.js`: `VES.ord` guarda a direção (`asc` ou `desc`), `veCmp` compara pelo Nº, `veOrd` inverte ao clicar no título e `veThOrd` desenha o título com a seta |
 | Documentos do veículo (CRLV, DUT, Relatório do AJURI…) | `js/veiculos.js` (`VE_DOCS`) e `api/veiculos.js` (`DOCUMENTOS`), com os mesmos códigos nos dois |
 | Mensagens, confirmações e aviso de sucesso | `js/base.js`: `aviso` (só informa), `confirma` (pede confirmação e devolve verdadeiro ou falso), `pergunta` (pede um texto) e `toast` (aviso de sucesso no canto). Não use `alert`, `confirm` ou `prompt` do navegador |
 | Tempo de inatividade antes de encerrar a sessão | `js/base.js` (`INATIVO_MIN` e `AVISO_MIN`) |

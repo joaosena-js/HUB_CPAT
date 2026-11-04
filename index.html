@@ -964,6 +964,33 @@
             vertical-align: middle
         }
 
+        /* Cabeçalho que ordena a coluna (Nº da tela Veículos) */
+        th .tho {
+            all: unset;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font: inherit;
+            color: var(--pr);
+            text-transform: inherit;
+            letter-spacing: inherit
+        }
+
+        th .tho span {
+            font-size: 9px
+        }
+
+        th .tho:hover {
+            text-decoration: underline
+        }
+
+        th .tho:focus-visible {
+            outline: 2px solid var(--pr);
+            outline-offset: 2px;
+            border-radius: 3px
+        }
+
         .tw th.tl,
         .tw td.tl {
             text-align: left

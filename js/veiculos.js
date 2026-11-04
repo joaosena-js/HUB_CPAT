@@ -81,12 +81,12 @@ const VE_AVARIAS = [
 ];
 
 // VE = veículos carregados; VEL = assinatura da última carga; VEP = carga em andamento; VE_FOTOS_OK = Blob configurado
-// VES = pesquisa, filtros e página da tela Veículos; VPS = pesquisa da tela Processos (de veículos)
+// VES = pesquisa, filtros, página e direção da ordenação pelo Nº (ord: 'asc' = menor para o maior, 'desc' = maior para o menor) da tela Veículos; VPS = pesquisa da tela Processos (de veículos)
 let VE = [],
     VEL = '',
     VEP = null,
     VE_FOTOS_OK = false;
-const VES = { q: '', f: {}, page: 1, size: 25, open: false },
+const VES = { q: '', f: {}, page: 1, size: 25, open: false, ord: 'asc' },
     VPS = { q: '', t: '' };
 
 // Lista de Verificação preenchida: tem data ou pelo menos um item marcado
@@ -156,8 +156,31 @@ const veBusca = () => {
             (qp.length > 2 && nz(x.placa + ' ' + x.chassi + ' ' + x.renavam).includes(qp))
     );
 };
-// Veículos depois da pesquisa e dos filtros
-const veRows = () => veBusca().filter(x => veOk(x, VES.f));
+// Compara dois veículos pelo Nº de ordem como número (2 vem antes de 10), na direção escolhida.
+// Veículo sem Nº fica sempre no fim; empate (não deveria ocorrer) é desfeito pelo id, para a ordem não mudar entre redesenhos.
+const veCmp = (a, b) => {
+    const x = a.ordem == null || a.ordem === '' ? null : Number(a.ordem),
+        y = b.ordem == null || b.ordem === '' ? null : Number(b.ordem);
+    if (x == null || y == null) return x == null && y == null ? a.id - b.id : x == null ? 1 : -1;
+    return (VES.ord == 'desc' ? y - x : x - y) || a.id - b.id;
+};
+// Veículos depois da pesquisa e dos filtros, na ordem do Nº (a tela, o Excel e o PDF seguem a mesma ordem)
+const veRows = () => veBusca().filter(x => veOk(x, VES.f)).sort(veCmp);
+// Inverte a ordenação pelo Nº (clique no cabeçalho da coluna) e volta para a primeira página.
+// A tabela é redesenhada, então o foco volta ao cabeçalho para quem usa o teclado continuar de onde estava.
+const veOrd = () => {
+    VES.ord = VES.ord == 'desc' ? 'asc' : 'desc';
+    VES.page = 1;
+    veList();
+    const t = $('#res thead .tho');
+    if (t) t.focus();
+};
+// Cabeçalho da coluna Nº: botão com seta indicando a direção atual
+const veThOrd = () => {
+    const d = VES.ord == 'desc',
+        t = d ? 'Ordenado do maior para o menor. Clique para ordenar do menor para o maior' : 'Ordenado do menor para o maior. Clique para ordenar do maior para o menor';
+    return `<th aria-sort="${d ? 'descending' : 'ascending'}"><button type="button" class="tho" title="${t}" aria-label="Nº, ${t.toLowerCase()}" onclick="veOrd()">Nº<span aria-hidden="true">${d ? '▼' : '▲'}</span></button></th>`;
+};
 // Colunas: título, valor para exportação, HTML opcional para a tela
 const VE_C = [
     ['Nº', v => v.ordem ?? ''],
@@ -344,7 +367,7 @@ function veList() {
         `<div class="tw">
             <table>
             <thead>
-            <tr>${VE_C.map(c => `<th${tal(c[0])}>${c[0]}</th>`).join('')}<th>Ações</th>
+            <tr>${VE_C.map(c => (c[0] == 'Nº' ? veThOrd() : `<th${tal(c[0])}>${c[0]}</th>`)).join('')}<th>Ações</th>
             </tr>
             </thead>
             <tbody>${pg

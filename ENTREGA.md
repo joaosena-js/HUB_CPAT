@@ -1,5 +1,25 @@
 # Hub Patrimonial: entrega
 
+## Versão 7.8: lista de veículos ordenada pelo Nº
+
+**Ordem padrão:** a tabela da tela Veículos passa a abrir sempre na ordem do Nº de ordem, do menor para o maior (1, 2, 3…). Antes ela seguia a ordem de cadastro no banco, do mais recente para o mais antigo.
+
+**Inverter a ordem:** clique no título da coluna Nº. A lista passa a ir do maior para o menor; um novo clique volta para o menor para o maior. A seta ao lado do título mostra a direção atual (▲ do menor para o maior, ▼ do maior para o menor), e o título fica em azul para indicar que pode ser clicado. Ao inverter, a lista volta para a primeira página.
+
+**Como a ordenação funciona:**
+- A comparação é numérica: o 2 vem antes do 10 (em ordem de texto, o 10 viria antes).
+- A ordem é mantida junto com a pesquisa, os filtros e a paginação. Por exemplo, ao filtrar só motocicletas, elas aparecem na ordem do Nº escolhida.
+- O Excel e o PDF exportados pela tela saem na mesma ordem da tela.
+- Um veículo sem Nº (não deveria existir, porque o número é automático desde a versão 7.6) fica sempre no fim da lista.
+- A escolha vale enquanto a página estiver aberta. Ao recarregar a página, a lista volta ao padrão, do menor para o maior.
+- Pelo teclado, Tab chega ao título Nº e Enter inverte a ordem; o foco continua no título. Para leitores de tela, o título informa a direção atual.
+
+**Nada mudou no servidor nem no banco:** a ordenação é feita no navegador, sobre a lista já carregada.
+
+**Arquivos alterados:** `js/veiculos.js` (funções `veCmp`, `veOrd` e `veThOrd`; `veRows` ordena a lista), `index.html` (estilo do título que ordena), `js/base.js` (versão 7.8), `ENTREGA.md` e `GUIA-DO-CODIGO.md`.
+
+**Testes (local, com navegador automatizado e dados simulados de 31 veículos):** ordem padrão 1 a 25 na primeira página; clique inverte para 30, 29…; segunda página em ordem decrescente termina no 1 e no veículo sem Nº; Nº gravado como texto ("10") ordenado como número; pesquisa e filtro de tipo mantêm a ordem; inverter volta à página 1; Enter pelo teclado inverte e mantém o foco; exportação na mesma ordem; tema escuro; celular com 375 px sem rolagem lateral; nenhum erro no console. Ainda não foi testado com o banco real na Vercel.
+
 ## Versão 7.7: menu do perfil no canto superior direito
 
 **Menu do perfil:** as ações do usuário saíram do rodapé do menu lateral e foram para um ícone redondo com as iniciais do nome (por exemplo, "JS" para João Sena), no canto superior direito, ao lado do botão Novo processo. Ao clicar, abre uma lista com:
