@@ -41,7 +41,7 @@ const IC = {
     gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
 };
 // Versão do sistema, exibida abaixo do nome no menu lateral
-const VERSAO = '7.6';
+const VERSAO = '7.7';
 IC.pie = '<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>';
 IC.chat = '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
 IC.home =
@@ -753,7 +753,7 @@ function draw() {
               ? ''
               : `<div class="ib">O banco está vazio. <button class="btn p s" onclick="seed()">Carregar os ${SEED ? SEED.processos.length : ''} processos da planilha</button></div>`) +
           (TELAS[tab] ? TELAS[tab]() : screen(tab));
-    sf();
+    pf();
     // Depois de desenhar a tela, preenche as tabelas que têm pesquisa e filtros próprios
     if (ready) {
         if (tab == 'relg' && RG.aba == 'proc') rl();
@@ -782,14 +782,84 @@ function th() {
     localStorage.setItem('dbm_t', n);
     $('#bt').innerHTML = ic(n == 'dark' ? 'sun' : 'moon', 17);
 }
-// Rodapé do menu com o nome e o perfil do usuário logado
-const sf = () =>
-    ($('.sf').innerHTML =
-        (ME
-            ? `<div class="me"><b>${esc(ME.nome)}</b>${ME.perfil == 'admin' ? 'Administrador' : 'Servidor'}</div>`
-            : '') +
-        `<button onclick="xl()">${ic('xls', 17)} Planilha completa</button><button onclick="bk()">${ic('db', 17)} Backup (JSON)</button>${adm() ? `<button onclick="openImp()">${ic('up', 17)} Importar dados</button>` : ''}${ME ? `<button onclick="senha()">${ic('pen', 17)} Alterar minha senha</button><button onclick="sair()">${ic('x', 17)} Sair</button>` : ''}`);
-sf();
+// Menu do perfil (v7.7): avatar com as iniciais no canto superior direito, com lista suspensa do nome, do perfil
+// e das ações do usuário. As ações e as condições de exibição são as mesmas do antigo rodapé do menu lateral;
+// as permissões continuam conferidas no servidor.
+const PREP = ['da', 'das', 'de', 'do', 'dos', 'e'];
+const iniciais = n => {
+    const p = String(n || '')
+        .trim()
+        .split(/\s+/)
+        .filter(x => x && !PREP.includes(x.toLowerCase()));
+    return ((p[0] || '').charAt(0) + (p.length > 1 ? p[p.length - 1].charAt(0) : '')).toUpperCase();
+};
+let PF_HTML = '';
+const pf = () => {
+    const ini = ME ? iniciais(ME.nome) : '',
+        perfil = ME ? (ME.perfil == 'admin' ? 'Administrador' : 'Servidor') : '',
+        av = ini ? esc(ini) : ic('user', 18),
+        it = (fn, i, t, c = '') =>
+            `<button type="button" role="menuitem" tabindex="-1"${c ? ` class="${c}"` : ''} onclick="pfAcao(${fn})">${ic(i, 17)} ${t}</button>`,
+        h =
+            (ME
+                ? `<div class="pfh"><span class="pfa" aria-hidden="true">${av}</span><div><b>${esc(ME.nome)}</b><small>${perfil}</small></div></div>`
+                : '') +
+            it('xl', 'xls', 'Planilha completa') +
+            it('bk', 'db', 'Backup (JSON)') +
+            (adm() ? it('openImp', 'up', 'Importar dados') : '') +
+            (ME ? '<hr>' + it('senha', 'pen', 'Alterar minha senha') + it('sair', 'x', 'Sair', 'pfs') : '');
+    // Só redesenha quando algo mudou, para não fechar a lista nem perder o foco na atualização automática
+    if (h == PF_HTML) return;
+    PF_HTML = h;
+    const b = $('#pfb');
+    b.innerHTML = av;
+    const rot = ME ? `Menu do usuário: ${ME.nome}, ${perfil}` : 'Menu do usuário';
+    b.setAttribute('aria-label', rot);
+    b.title = rot;
+    $('#pm').innerHTML = h;
+};
+const pfItens = () => [...document.querySelectorAll('#pm [role=menuitem]')];
+function pfAbre(foco = 0) {
+    $('#pm').hidden = false;
+    $('#pfb').setAttribute('aria-expanded', 'true');
+    const l = pfItens();
+    if (l.length) l[(foco + l.length) % l.length].focus();
+}
+function pfFecha(voltar) {
+    if ($('#pm').hidden) return;
+    $('#pm').hidden = true;
+    $('#pfb').setAttribute('aria-expanded', 'false');
+    if (voltar) $('#pfb').focus();
+}
+const pfAlterna = () => ($('#pm').hidden ? pfAbre() : pfFecha());
+// Fecha a lista antes de executar a ação (algumas abrem janelas)
+function pfAcao(fn) {
+    pfFecha();
+    fn();
+}
+// Teclado: setas para cima e para baixo percorrem as opções, Home e End vão ao início e ao fim,
+// Esc fecha e devolve o foco ao avatar, Tab fecha e segue a ordem normal da página
+$('#pfb').addEventListener('keydown', e => {
+    if (e.key == 'ArrowDown' || e.key == 'ArrowUp') {
+        e.preventDefault();
+        pfAbre(e.key == 'ArrowUp' ? -1 : 0);
+    }
+});
+$('#pm').addEventListener('keydown', e => {
+    const l = pfItens(),
+        i = l.indexOf(document.activeElement);
+    if (e.key == 'Escape') {
+        e.preventDefault();
+        pfFecha(true);
+    } else if (e.key == 'ArrowDown' || e.key == 'ArrowUp') {
+        e.preventDefault();
+        l[(i + (e.key == 'ArrowDown' ? 1 : -1) + l.length) % l.length].focus();
+    } else if (e.key == 'Home' || e.key == 'End') {
+        e.preventDefault();
+        l[e.key == 'Home' ? 0 : l.length - 1].focus();
+    } else if (e.key == 'Tab') pfFecha();
+});
+pf();
 $('.lg i').innerHTML = ic('bank', 22);
 $('#mb').innerHTML = ic('menu', 22);
 $('#bn').innerHTML = ic('plus', 16) + ' <span class="tp-t">Novo processo</span>';
@@ -798,6 +868,7 @@ $('#ver').textContent = 'Versão ' + VERSAO;
 $('#bt').innerHTML = ic(document.documentElement.dataset.t == 'dark' ? 'sun' : 'moon', 17);
 document.addEventListener('click', e => {
     if (!e.target.closest('.gs')) $('#gd').hidden = true;
+    if (!e.target.closest('.pf')) pfFecha();
 });
 // Atualização automática: busca novidades no servidor sem atrapalhar quem está digitando
 const poll = () => {

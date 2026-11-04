@@ -1,5 +1,27 @@
 # Hub Patrimonial: entrega
 
+## Versão 7.7: menu do perfil no canto superior direito
+
+**Menu do perfil:** as ações do usuário saíram do rodapé do menu lateral e foram para um ícone redondo com as iniciais do nome (por exemplo, "JS" para João Sena), no canto superior direito, ao lado do botão Novo processo. Ao clicar, abre uma lista com:
+- nome e perfil (Administrador ou Servidor);
+- Planilha completa, Backup (JSON) e Importar dados (este último só para administrador, como antes);
+- Alterar minha senha e Sair, separados das demais por uma linha. Sair fica em vermelho ao passar o mouse.
+
+**Como a lista se comporta:**
+- Fecha ao clicar ou tocar fora dela, ao escolher uma opção e com a tecla Esc.
+- Pelo teclado: Tab chega ao ícone, Enter ou seta para baixo abre a lista, as setas percorrem as opções, Home e End vão à primeira e à última, Esc fecha e devolve o foco ao ícone.
+- A atualização automática (a cada 30 segundos) não fecha a lista aberta.
+- Funciona no tema claro e no escuro e no celular, onde a lista ocupa a largura disponível sem criar rolagem lateral.
+- Para leitores de tela, o ícone se anuncia como "Menu do usuário: nome, perfil".
+
+**Nada mudou nas permissões:** as opções aparecem nas mesmas condições de antes, e o servidor continua conferindo o perfil em cada ação (por exemplo, a importação de dados só é aceita de administrador).
+
+**Menu lateral:** sem o rodapé, sobra mais espaço para os itens de navegação.
+
+**Arquivos alterados:** `index.html` (estilos do menu do perfil, ícone no topo e remoção do rodapé do menu lateral), `js/base.js` (função `pf`, que monta o menu, e o controle de abrir e fechar; versão 7.7), `ENTREGA.md` e `GUIA-DO-CODIGO.md`.
+
+**Testes (local, com navegador automatizado):** administrador vê as 5 opções e servidor vê 4 (sem Importar dados); Planilha completa e Backup (JSON) baixaram os arquivos; Importar dados e Alterar minha senha abriram as janelas; Sair encerrou a sessão; clique fora, toque fora e Esc fecham a lista; navegação por setas, Home e End; redesenho da tela com a lista aberta; tema escuro; celular com 375 px de largura sem rolagem lateral; nenhum erro no console.
+
 ## Versão 7.6: documentos do veículo, detalhe em abas e prontuário em paisagem
 
 **Detalhe do veículo em abas:** Informações do veículo, Documentos, Fotos e Lista de Verificação. As abas mostram a contagem (por exemplo, "Documentos (3/8)" e "Fotos (2)"). Depois de salvar uma foto, um documento ou a Lista de Verificação, a janela continua na mesma aba.

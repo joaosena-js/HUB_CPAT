@@ -22,7 +22,7 @@ Os arquivos são carregados pelo `index.html` nesta ordem, e cada um pode usar o
 
 | Arquivo | Conteúdo |
 |---|---|
-| `js/base.js` | Funções usadas por todas as telas: ícones, versão do sistema (`VERSAO`), login, comunicação com o servidor (`api`), menu (`NAV`), qual função desenha cada tela (`TELAS`), troca de tela (`go`, `draw`), tema claro e escuro, pop-up Resumo do dia, exportação para Excel e PDF |
+| `js/base.js` | Funções usadas por todas as telas: ícones, versão do sistema (`VERSAO`), login, comunicação com o servidor (`api`), menu (`NAV`), qual função desenha cada tela (`TELAS`), troca de tela (`go`, `draw`), tema claro e escuro, menu do perfil no canto superior direito (`pf`), pop-up Resumo do dia, exportação para Excel e PDF |
 | `js/processos.js` | Gestão de Processos: Dashboard, Alienações, Transferências, Todos os Processos, Idade de Saldo, detalhe com histórico, formulário, relatórios de processos, tela Listas e Parâmetros e importação de planilha |
 | `js/atendimentos.js` | Gestão de Atendimentos: tela, filtros, detalhe com histórico, formulário e importação de planilha |
 | `js/relatorios.js` | Tela Gerenciais: aba Indicadores do período (quadros por mês, trimestre, ano ou intervalo, comparação com o período anterior e escolha do que entra no PDF e no Excel) e aba Relatórios de processos |
@@ -117,6 +117,7 @@ Os prefixos ajudam a saber de qual módulo é cada função: `at` é de atendime
 | Cores, tamanhos, espaçamentos | `index.html`, no bloco `<style>`. As cores ficam em variáveis como `--pr` no início do bloco |
 | Tipos de processo (Transferência, Alienação, Veículo) | `js/base.js` (`TIPOS`) e `api/data.js` (`TIPOS`). Os campos de cada tipo ficam em `js/processos.js`, função `form` |
 | Itens do menu lateral | `js/base.js`, lista `NAV` (e `TELAS`, quando for uma tela nova) |
+| Opções do menu do perfil (Planilha completa, Backup, Importar dados, Alterar minha senha, Sair) | `js/base.js`, função `pf` |
 | Colunas da tabela de processos | `js/processos.js`, lista `CT` |
 | Colunas da tabela de atendimentos | `js/atendimentos.js`, lista `AT_C` (tela) e `AT_X` (exportação) |
 | Canais, categorias e situações de atendimento | `js/atendimentos.js` (`AT_CANAIS`, `AT_CATS`, `AT_SIT`) e também `api/atendimentos.js` (`CANAIS`, `CATEGORIAS`, `SITUACOES`), porque o servidor confere os mesmos valores |

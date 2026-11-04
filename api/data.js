@@ -143,13 +143,13 @@ module.exports = async (req, res) => {
             if (f[0].n >= MAX_FALHAS)
                 return res
                     .status(429)
-                    .json({ error: 'Muitas tentativas sem sucesso. Aguarde 1 minuto e tente novamente.' });
+                    .json({ error: 'Muitas tentativas sem sucesso. Aguarde 15 minutos e tente novamente.' });
             const fi = await sql`select count(*)::int n
                     from log_atividades
-                    where acao = 'login_falha' and ip = ${ip} and criado_em > now() - interval '1 minutes'`;
+                    where acao = 'login_falha' and ip = ${ip} and criado_em > now() - interval '15 minutes'`;
             if (fi[0].n >= MAX_FALHAS_IP)
                 return res.status(429).json({
-                    error: 'Muitas tentativas sem sucesso a partir desta rede. Aguarde 1 minuto e tente novamente.',
+                    error: 'Muitas tentativas sem sucesso a partir desta rede. Aguarde 15 minutos e tente novamente.',
                 });
             const u = (
                 await sql`select id, nome, versao, senha_hash from usuarios where login = ${login} and ativo`
