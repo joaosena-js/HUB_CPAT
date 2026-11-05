@@ -1,5 +1,57 @@
 # Hub Patrimonial: entrega
 
+## Versão 7.9: situação documental automática pelos documentos
+
+**Regra:** a situação documental do veículo passa a ser preenchida pelo sistema, pela quantidade dos 8 documentos (CRLV, DUT, Relatório do AJURI, Ficha do DETRAN, DNIT, IMMU, PRF e SEFAZ) que o veículo possui na aba Documentos:
+
+| Documentos que o veículo possui | Situação documental |
+|---|---|
+| Os 8 | Regularizado |
+| De 1 a 7 | Em regularização |
+| Nenhum | Não regularizado |
+
+O pedido falava em "metade" para Em regularização. Interpretei como qualquer quantidade entre 1 e 7, porque assim todo veículo tem uma situação definida. Se o setor preferir outra faixa (por exemplo, Em regularização só a partir de 4), a mudança é pequena: a função `situacao_doc_auto` no banco e `veSitAuto` na tela.
+
+**Atualiza sozinha:** ao marcar ou desmarcar um documento e ao anexar um arquivo (que marca o documento), a situação é recalculada no servidor na mesma hora. Remover um arquivo não muda a situação, porque o documento continua marcado como "possui" até ser desmarcado.
+
+**Alteração manual:** no formulário Editar veículo, o campo Situação documental tem as opções:
+- "Automática, pelos documentos (situação atual)": o padrão. O sistema calcula.
+- "Regularizado", "Em regularização" ou "Não regularizado" (definir manualmente): a situação fica fixa e não muda quando os documentos mudam.
+
+Para voltar ao cálculo, basta escolher "Automática" de novo e salvar.
+
+**Como a tela mostra:**
+- Na lista, na aba Informações e na aba Documentos, a situação definida à mão aparece com a indicação "(manual)".
+- A aba Informações explica a situação: "Automática: 4 de 8 documentos" ou "Definida manualmente. Pelos documentos (8 de 8) seria Regularizado."
+- A aba Documentos mostra a situação atual e a regra.
+- Novo filtro "Forma da situação documental" (Automática ou Definida manualmente) e nova coluna com a mesma informação no Excel.
+- No quadro Pendências de cadastro, a linha "Situação documental não informada" (que deixou de existir, porque o sistema sempre calcula) foi trocada por "Situação documental definida manualmente", para facilitar a conferência.
+
+**Veículos já cadastrados (na primeira vez que a v7.9 abrir):**
+- Sem situação marcada, ou com situação igual à do cálculo: passam a ser automáticos.
+- Com situação marcada à mão diferente do cálculo (por exemplo, "Regularizado" sem nenhum documento marcado): ficam como definidos manualmente, para não perder o que foi marcado. Use o filtro "Forma da situação documental: Definida manualmente" para revisar esses veículos e passar para automática os que não precisarem de exceção.
+
+**Importação da planilha:** linhas sem situação documental entram como automáticas (Não regularizado, já que entram sem documentos). Linhas com situação preenchida na planilha entram como definidas manualmente, e a prévia avisa isso.
+
+**Segurança e registro:**
+- O servidor confere o valor recebido (só aceita as 3 situações ou vazio para automática) e faz o cálculo sozinho. A tela apenas mostra a mesma conta.
+- O Log de atividades registra quando a situação é definida manualmente ("Situação documental definida manualmente como Regularizado no veículo…") e quando volta a ser automática.
+- Quando um documento marcado, desmarcado ou anexado muda a situação, o registro do documento no log informa a mudança (por exemplo, "CRLV no veículo #1 Gol AAA1111; situação documental: Não regularizado → Em regularização").
+
+**Banco de dados:** coluna nova `veiculos.situacao_doc_manual` e função `situacao_doc_auto`, criadas sozinhas na primeira requisição (`lib/comum.js`). O script `db/migracao_009_situacao_documental.sql` fica de registro, para quem quiser rodar antes no Neon. Faça um Backup (JSON) antes de publicar, como nas outras versões.
+
+**Arquivos alterados:** `lib/comum.js` (coluna, função e ajuste dos já cadastrados), `api/veiculos.js` (validação, recálculo ao salvar, importar e marcar documentos, registros no log), `js/veiculos.js` (`veSitAuto`, `veSitInfo`, `veSit`, formulário, abas, filtro, exportação, pendências e prévia da importação), `js/base.js` (versão 7.9), `db/migracao_009_situacao_documental.sql` (novo), `ENTREGA.md` e `GUIA-DO-CODIGO.md`.
+
+**Testes (local, PostgreSQL 16 com banco criado pela v7.8 e depois aberto pela v7.9, e navegador automatizado):**
+- Ajuste dos já cadastrados: sem situação passou a automática; "Regularizado" sem documentos e "Não regularizado" com os 8 ficaram manuais; "Em regularização" com 4 documentos ficou automática. Abrir o sistema de novo não alterou nada.
+- Marcar 1 documento: Não regularizado → Em regularização. Desmarcar 1 de 8: Regularizado → Em regularização. Marcar de novo: Regularizado.
+- Veículo manual não mudou ao marcar documento. Escolher "Automática" recalculou na hora; escolher uma situação gravou como manual.
+- Valor inválido enviado direto ao servidor ("Pendente") foi recusado.
+- Novo veículo sem situação: Não regularizado, automático. Importação: linha sem situação ficou automática; com situação, manual.
+- Log com as mensagens acima; filtro "Definida manualmente"; celular com 375 px sem rolagem lateral; nenhum erro no console.
+
+**Falta testar:** o recálculo ao anexar um arquivo de documento, que depende do Vercel Blob (ainda não criado) e por isso não foi testado aqui; e a primeira abertura no Neon de vocês, com os veículos reais, para conferir quantos ficaram como definidos manualmente.
+
 ## Versão 7.8: lista de veículos ordenada pelo Nº
 
 **Ordem padrão:** a tabela da tela Veículos passa a abrir sempre na ordem do Nº de ordem, do menor para o maior (1, 2, 3…). Antes ela seguia a ordem de cadastro no banco, do mais recente para o mais antigo.

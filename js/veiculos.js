@@ -94,14 +94,29 @@ const veVistOk = v => !!(v.vistoria && (v.vistoria.data || (v.vistoria.itens || 
 // Documento que o veículo possui: marcado pelo usuário ou com arquivo anexado
 const veTemDoc = (v, d) => !!((v.documentos || {})[d] || (v.anexos || {})[d]);
 const veQtdDocs = v => VE_DOCS.filter(([d]) => veTemDoc(v, d)).length;
+// Situação documental automática (v7.9), a mesma regra do servidor (função situacao_doc_auto no banco):
+// todos os documentos = Regularizado, de 1 a 7 = Em regularização, nenhum = Não regularizado
+const veSitAuto = v => {
+    const n = veQtdDocs(v);
+    return n >= VE_DOCS.length ? 'Regularizado' : n ? 'Em regularização' : 'Não regularizado';
+};
 // Placa no formato de exibição: ABC-1234 (antiga) ou ABC1D23 (Mercosul)
 const vePlaca = p => (/^[A-Z]{3}\d{4}$/.test(p || '') ? p.slice(0, 3) + '-' + p.slice(3) : p || '');
 // Nome curto do veículo para títulos: modelo e placa (ou tombo)
 const veNome = v => v.modelo + (v.placa ? ' · ' + vePlaca(v.placa) : v.tombo ? ' · tombo ' + v.tombo : '');
 const veSit = v =>
-    v.situacao_doc
+    (v.situacao_doc
         ? `<span class="bd ${VE_SIT_COR[v.situacao_doc] || ''}">${esc(v.situacao_doc)}</span>`
-        : '<span class="nt">Não informada</span>';
+        : '<span class="nt">Não informada</span>') +
+    (v.situacao_doc_manual ? ' <small class="nt" title="Situação documental definida manualmente">(manual)</small>' : '');
+// Explicação da situação: quantos documentos o veículo tem e se a situação é automática ou manual
+const veSitInfo = v => {
+    const n = veQtdDocs(v),
+        a = veSitAuto(v);
+    return v.situacao_doc_manual
+        ? `Definida manualmente.${a != v.situacao_doc ? ` Pelos documentos (${n} de ${VE_DOCS.length}) seria ${a}.` : ''} Para voltar ao cálculo automático, edite o veículo e escolha "Automática".`
+        : `Automática: ${n} de ${VE_DOCS.length} documentos.`;
+};
 const veDep = v =>
     v.saida ? `<span class="bd n">Saiu em ${fmt(v.saida)}</span>` : '<span class="bd">No depósito</span>';
 // Lista de veículos com os campos calculados usados nos filtros
@@ -110,6 +125,7 @@ const veView = () =>
         ...v,
         deposito: v.saida ? 'Saiu do depósito' : 'No depósito',
         doc: v.situacao_doc || 'Não informada',
+        sitforma: v.situacao_doc_manual ? 'Definida manualmente' : 'Automática',
         vist: veVistOk(v) ? 'Preenchida' : 'Não preenchida',
         temfoto: v.fotos ? 'Com fotos' : 'Sem fotos',
         temproc: v.processo_id
@@ -122,6 +138,7 @@ const veView = () =>
 const VE_FD = [
     ['deposito', 'Situação no depósito'],
     ['doc', 'Situação documental'],
+    ['sitforma', 'Forma da situação documental'],
     ['tipo', 'Tipo'],
     ['orgao', 'Órgão'],
     ['dest', 'Destinação'],
@@ -212,6 +229,7 @@ const VE_X = (() => {
         ['Último licenciamento', v => v.ultimo_licenciamento || ''],
         c['Destinação'],
         c['Situação documental'],
+        ['Forma da situação documental', v => (v.situacao_doc_manual ? 'Definida manualmente' : 'Automática')],
         c['Depósito'],
         ['Entrada no depósito', v => (v.entrada ? fmt(v.entrada) : '')],
         ['Saída do depósito', v => (v.saida ? fmt(v.saida) : '')],
@@ -274,7 +292,7 @@ function veScr() {
             { temproc: 'Processo não cadastrado no Hub' },
         ],
         ['Sem destinação informada', dep.filter(x => !x.destinacao).length, { dest: 'Não informada' }],
-        ['Situação documental não informada', ni, { doc: 'Não informada' }],
+        ['Situação documental definida manualmente', dep.filter(x => x.situacao_doc_manual).length, { sitforma: 'Definida manualmente' }],
     ];
     const cores = ['#1d4ed8', '#16a34a', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#64748b'];
     const dest = veConta(dep, x => x.destinacao || 'Não informada').map((x, i) => [
@@ -414,11 +432,11 @@ async function veDet(id, aba = 'info') {
         ];
     let corpo = '';
     if (aba == 'info')
-        corpo = `<div class="dl">${f('Nº de ordem', v.ordem)}${f('Placa', vePlaca(v.placa))}${f('Tombo', v.tombo)}${f('Tipo', v.tipo)}${f('Modelo', v.modelo)}${f('Ano', v.ano)}${f('Órgão', v.orgao)}${f('Chassi', v.chassi)}${f('RENAVAM', v.renavam)}${f('Último licenciamento', v.ultimo_licenciamento)}<div>Situação documental<b>${veSit(v)}</b></div>${f('Destinação', v.destinacao)}<div>Depósito<b>${veDep(v)}</b></div>${f('Entrada no depósito', v.entrada ? fmt(v.entrada) : '')}<div>Processo<b>${v.processo_id ? `<a href="#" onclick="event.preventDefault();det(${v.processo_id})">${esc(v.processo_numero)}</a>${v.processo_tipo ? ' · ' + esc(v.processo_tipo) : ''}` : v.processo_numero ? `${esc(v.processo_numero)} <small class="nt">(não cadastrado no Hub)</small>` : '—'}</b></div>${v.obs ? `<div class="w">Observações<b style="white-space:pre-wrap">${esc(v.obs)}</b></div>` : ''}
+        corpo = `<div class="dl">${f('Nº de ordem', v.ordem)}${f('Placa', vePlaca(v.placa))}${f('Tombo', v.tombo)}${f('Tipo', v.tipo)}${f('Modelo', v.modelo)}${f('Ano', v.ano)}${f('Órgão', v.orgao)}${f('Chassi', v.chassi)}${f('RENAVAM', v.renavam)}${f('Último licenciamento', v.ultimo_licenciamento)}<div>Situação documental<b>${veSit(v)}<small class="nt" style="display:block;font-weight:400">${esc(veSitInfo(v))}</small></b></div>${f('Destinação', v.destinacao)}<div>Depósito<b>${veDep(v)}</b></div>${f('Entrada no depósito', v.entrada ? fmt(v.entrada) : '')}<div>Processo<b>${v.processo_id ? `<a href="#" onclick="event.preventDefault();det(${v.processo_id})">${esc(v.processo_numero)}</a>${v.processo_tipo ? ' · ' + esc(v.processo_tipo) : ''}` : v.processo_numero ? `${esc(v.processo_numero)} <small class="nt">(não cadastrado no Hub)</small>` : '—'}</b></div>${v.obs ? `<div class="w">Observações<b style="white-space:pre-wrap">${esc(v.obs)}</b></div>` : ''}
             </div>
 <div class="ac"><button class="btn p" onclick="veEd(${v.id})">${ic('pen', 15)} Editar</button><span class="nt">Atualizado em ${esc(v.atualizado_em)}${v.criado_por_nome ? ' · cadastrado por ' + esc(v.criado_por_nome) : ''}</span><span class="sp"></span>${adm() ? `<button class="btn d" onclick="veRm(${v.id})">${ic('trash', 15)} Excluir</button>` : ''}</div>`;
     else if (aba == 'docs')
-        corpo = `<p class="nt" style="margin:0 20px 10px">Marque os documentos que o veículo possui e anexe o arquivo de cada um (PDF, JPG ou PNG, até 10 MB). Documento com arquivo anexado fica marcado no prontuário.</p><div id="vdoc" class="vf"><p class="nt">Carregando documentos…</p></div>`;
+        corpo = `<p class="nt" style="margin:0 20px 10px">Marque os documentos que o veículo possui e anexe o arquivo de cada um (PDF, JPG ou PNG, até 10 MB). Documento com arquivo anexado fica marcado no prontuário.</p><p class="nt" style="margin:0 20px 10px">Situação documental: ${veSit(v)} ${esc(veSitInfo(v))} Regra automática: com os ${VE_DOCS.length} documentos, Regularizado; com 1 a ${VE_DOCS.length - 1}, Em regularização; sem nenhum, Não regularizado.</p><div id="vdoc" class="vf"><p class="nt">Carregando documentos…</p></div>`;
     else if (aba == 'fotos') corpo = `<div id="vf" class="vf"><p class="nt">Carregando fotos…</p></div>`;
     else
         corpo = `<div class="vst">${veVistOk(v) ? `Preenchida${vs.data ? ' (vistoria em ' + fmt(vs.data) + ')' : ''} por ${esc(vs.registrado_por || '—')}.` : 'Ainda não preenchida. A impressão sai com os dados do veículo e o restante em branco, para preencher à mão.'}<span class="sp"></span><button class="btn s" onclick="veVist(${v.id})">${ic('pen', 14)} ${veVistOk(v) ? 'Editar' : 'Preencher'}</button><button class="btn s" onclick="veImprimir(${v.id})">${ic('print', 14)} Imprimir</button></div>`;
@@ -678,10 +696,10 @@ ${inp('chassi', 'Chassi', 'maxlength="30" style="text-transform:uppercase"')}${i
 ${inp('ultimo_licenciamento', 'Último licenciamento (ano)', `type="number" min="1900" max="${ano}" step="1"`)}
 <h3 class="kt w" style="margin:8px 0 0">Origem e situação</h3>
 ${inp('orgao', 'Órgão', 'list="dl_vo" maxlength="200"')}${inp('processo_numero', 'Processo (opcional)', 'list="dl_vpr" maxlength="100" placeholder="Nº do processo"')}
-<label>Situação documental<select id="v_situacao_doc"><option value="">Não informada</option>${VE_SIT.map(s => `<option ${v.situacao_doc == s ? 'selected' : ''}>${s}</option>`).join('')}</select></label>${inp('destinacao', 'Destinação', 'list="dl_vd" maxlength="100"')}
+<label>Situação documental<select id="v_situacao_doc"><option value="">Automática, pelos documentos (${veSitAuto(v)})</option>${VE_SIT.map(s => `<option value="${s}" ${v.situacao_doc_manual && v.situacao_doc == s ? 'selected' : ''}>${s} (definir manualmente)</option>`).join('')}</select></label>${inp('destinacao', 'Destinação', 'list="dl_vd" maxlength="100"')}
 ${inp('entrada', 'Entrada no depósito (opcional)', `type="date" max="${TS()}"`)}${inp('saida', 'Saída do depósito', `type="date" max="${TS()}"`)}
 <label class="w">Observações<textarea id="v_obs" rows="2" maxlength="2000">${esc(v.obs || '')}</textarea></label>
-<p class="nt w" style="margin:0">${id ? `Nº de ordem ${v.ordem ?? '—'} (definido pelo sistema). ` : 'O nº de ordem é definido pelo sistema ao salvar, na sequência do último veículo cadastrado. '}Deixe a saída em branco enquanto o veículo estiver no depósito. Informe pelo menos um identificador: placa, chassi, RENAVAM ou tombo. Se o processo já estiver cadastrado no Hub, o vínculo é feito pelo número, mesmo que ele seja cadastrado depois.</p>
+<p class="nt w" style="margin:0">${id ? `Nº de ordem ${v.ordem ?? '—'} (definido pelo sistema). ` : 'O nº de ordem é definido pelo sistema ao salvar, na sequência do último veículo cadastrado. '}Situação documental automática: com os ${VE_DOCS.length} documentos, Regularizado; com 1 a ${VE_DOCS.length - 1}, Em regularização; sem nenhum, Não regularizado. Escolha uma situação só quando precisar definir manualmente. Deixe a saída em branco enquanto o veículo estiver no depósito. Informe pelo menos um identificador: placa, chassi, RENAVAM ou tombo. Se o processo já estiver cadastrado no Hub, o vínculo é feito pelo número, mesmo que ele seja cadastrado depois.</p>
 <div class="w" style="display:flex;gap:8px"><button class="btn p">${ic('ok', 15)} Salvar</button><button type="button" class="btn" onclick="${id ? `veDet(${id})` : `$('#dd').close()`}">Cancelar</button></div></form>
 ${dl('dl_vt', L.tipos_veiculo || VE_TIPOS_PAD)}${dl('dl_vd', L.destinacoes || VE_DEST_PAD)}${dl('dl_vo', L.orgaos)}${dl(
             'dl_vpr',
@@ -1151,7 +1169,7 @@ function veImpPrev() {
         (av.length
             ? `<div style="margin-top:12px"><b>${av.length} linha(s) com aviso</b> (são importadas assim mesmo; vale conferir no documento do veículo):${lista(av, x => x.avisos)}</div>`
             : '') +
-        `<p class="nt" style="margin:12px 0 0">RENAVAM com menos de 11 números recebe zeros à esquerda. Todos entram como "no depósito", sem data de entrada${l.some(x => x.situacao_doc) ? '' : ' e com a situação documental "Não informada"'}. Os já cadastrados (mesma placa, chassi, RENAVAM ou tombo) são ignorados, então importar o mesmo arquivo de novo não duplica.</p>`;
+        `<p class="nt" style="margin:12px 0 0">RENAVAM com menos de 11 números recebe zeros à esquerda. Todos entram como "no depósito", sem data de entrada e sem documentos marcados. ${l.some(x => x.situacao_doc) ? 'A situação documental informada na planilha fica gravada como definida manualmente; as linhas sem situação ficam com a situação automática (Não regularizado, até os documentos serem marcados).' : 'A situação documental fica automática: Não regularizado, até os documentos serem marcados.'} Os já cadastrados (mesma placa, chassi, RENAVAM ou tombo) são ignorados, então importar o mesmo arquivo de novo não duplica.</p>`;
     $('#vi_go').disabled = !!er.length || !nv.length;
     $('#vi_go').innerHTML = `${ic('up', 15)} Importar ${nv.length} veículo(s)`;
 }

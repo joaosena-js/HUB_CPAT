@@ -30,6 +30,8 @@ const DOCUMENTOS = {
     sefaz: 'SEFAZ',
 };
 const ANEXOS_POR_DOCUMENTO = 5;
+// Situação documental (v7.9): calculada pela quantidade de documentos (função situacao_doc_auto no banco, ver lib/comum.js):
+// todos os 8 = Regularizado, de 1 a 7 = Em regularização, nenhum = Não regularizado. Pode ser definida à mão e voltar ao automático.
 // Lista de Verificação: 26 itens (S, N, I ou A), 5 vistas do desenho com avarias (A, R, Q ou F)
 const ITENS = 26,
     MARCAS_ITEM = ['', 'S', 'N', 'I', 'A'],
@@ -83,6 +85,7 @@ function validar(item) {
         renavam: renavam(item.renavam),
         ultimo_licenciamento: ano(item.ultimo_licenciamento, 'Ano do último licenciamento'),
         destinacao: txt(item.destinacao, 100, 'Destinação'),
+        // Vazio = automática (calculada pelos documentos); preenchida = definida manualmente
         situacao_doc: String(item.situacao_doc || ''),
         entrada: String(item.entrada || ''),
         saida: String(item.saida || ''),
@@ -95,6 +98,7 @@ function validar(item) {
     if (!v.placa && !v.chassi && !v.renavam && !v.tombo)
         throw new Erro('Informe pelo menos um identificador: placa, chassi, RENAVAM ou tombo');
     if (v.situacao_doc && !SITUACOES_DOC.includes(v.situacao_doc)) throw new Erro('Situação documental inválida');
+    v.situacao_doc_manual = !!v.situacao_doc;
     for (const [k, n] of [
         ['entrada', 'entrada no depósito'],
         ['saida', 'saída do depósito'],
@@ -142,7 +146,7 @@ function validarVistoria(x) {
 const consultar = (
     sql,
     id
-) => sql`select v.id, v.ordem, v.orgao, p.id as processo_id, v.processo as processo_numero, p.data->>'tipo' as processo_tipo, v.placa, v.tombo, v.tipo, v.modelo, v.ano, v.chassi, v.renavam, v.ultimo_licenciamento, v.destinacao, v.situacao_doc, v.obs,
+) => sql`select v.id, v.ordem, v.orgao, p.id as processo_id, v.processo as processo_numero, p.data->>'tipo' as processo_tipo, v.placa, v.tombo, v.tipo, v.modelo, v.ano, v.chassi, v.renavam, v.ultimo_licenciamento, v.destinacao, v.situacao_doc, v.situacao_doc_manual, situacao_doc_auto(v.documentos) as situacao_doc_calculada, v.obs,
     to_char(v.entrada, 'YYYY-MM-DD') as entrada, to_char(v.saida, 'YYYY-MM-DD') as saida, v.vistoria, v.documentos, c.nome as criado_por_nome, to_char(v.atualizado_em at time zone 'America/Manaus', 'DD/MM/YYYY HH24:MI') as atualizado_em,
     (select count(*)::int
         from veiculo_fotos f
@@ -161,6 +165,16 @@ const consultar = (
     left join usuarios c on c.id = v.criado_por
   where ${id}::int = 0 or v.id = ${id}::int
   order by v.id desc`;
+// Recalcula a situação documental automática dos veículos informados (sem ids, de todos). Os definidos à mão não mudam.
+const recalcularSituacao = (sql, ids) => sql`update veiculos set situacao_doc = situacao_doc_auto(documentos)
+    where not situacao_doc_manual and (${ids || null}::int[] is null or id = any(${ids || null}::int[]))
+        and situacao_doc is distinct from situacao_doc_auto(documentos)
+    returning id, situacao_doc`;
+// Texto para o log quando a situação automática muda junto com um documento
+const mudouSituacao = async (sql, v) => {
+    const r = (await recalcularSituacao(sql, [v.id]))[0];
+    return r ? `; situação documental: ${v.situacao_doc || 'não informada'} → ${r.situacao_doc}` : '';
+};
 const rotulo = v =>
     `#${v.id} ${v.modelo}${v.placa ? ' ' + v.placa : ''}${v.tombo ? ' tombo ' + v.tombo : ''}`.slice(0, 160);
 
@@ -207,20 +221,27 @@ module.exports = async (req, res) => {
                             : 'este tombo';
                 throw new Erro(`Já existe um veículo cadastrado com ${c} (${dup.modelo}, nº ${dup.id}).`, 409);
             }
-            let novo = id;
+            let novo = id,
+                antes = null;
             if (id) {
-                await veiculo(id);
+                antes = await veiculo(id);
                 await sql`update veiculos set orgao = ${v.orgao}, processo = ${v.processo}, placa = ${v.placa}, tombo = ${v.tombo}, tipo = ${v.tipo}, modelo = ${v.modelo}, ano = ${v.ano}, chassi = ${v.chassi}, renavam = ${v.renavam},
-          ultimo_licenciamento = ${v.ultimo_licenciamento}, destinacao = ${v.destinacao}, situacao_doc = ${v.situacao_doc}, entrada = ${v.entrada || null}, saida = ${v.saida || null}, obs = ${v.obs}, atualizado_em = now()
+          ultimo_licenciamento = ${v.ultimo_licenciamento}, destinacao = ${v.destinacao}, situacao_doc = ${v.situacao_doc}, situacao_doc_manual = ${v.situacao_doc_manual}, entrada = ${v.entrada || null}, saida = ${v.saida || null}, obs = ${v.obs}, atualizado_em = now()
                     where id = ${id}`;
             } else {
                 novo = (
-                    await sql`insert into veiculos(ordem, orgao, processo, placa, tombo, tipo, modelo, ano, chassi, renavam, ultimo_licenciamento, destinacao, situacao_doc, entrada, saida, obs, criado_por)
-                        values ((select coalesce(max(ordem), 0) + 1 from veiculos), ${v.orgao}, ${v.processo}, ${v.placa}, ${v.tombo}, ${v.tipo}, ${v.modelo}, ${v.ano}, ${v.chassi}, ${v.renavam}, ${v.ultimo_licenciamento}, ${v.destinacao}, ${v.situacao_doc}, ${v.entrada || null}, ${v.saida || null}, ${v.obs}, ${me.id})
+                    await sql`insert into veiculos(ordem, orgao, processo, placa, tombo, tipo, modelo, ano, chassi, renavam, ultimo_licenciamento, destinacao, situacao_doc, situacao_doc_manual, entrada, saida, obs, criado_por)
+                        values ((select coalesce(max(ordem), 0) + 1 from veiculos), ${v.orgao}, ${v.processo}, ${v.placa}, ${v.tombo}, ${v.tipo}, ${v.modelo}, ${v.ano}, ${v.chassi}, ${v.renavam}, ${v.ultimo_licenciamento}, ${v.destinacao}, ${v.situacao_doc}, ${v.situacao_doc_manual}, ${v.entrada || null}, ${v.saida || null}, ${v.obs}, ${me.id})
                         returning id`
                 )[0].id;
             }
+            await recalcularSituacao(sql, [novo]);
             await registrar(me, id ? 'veiculo_alterado' : 'veiculo_criado', rotulo({ ...v, id: novo }));
+            // Troca entre automática e manual (ou de valor manual) fica registrada à parte, para a auditoria
+            if (v.situacao_doc_manual && (!antes || !antes.situacao_doc_manual || antes.situacao_doc !== v.situacao_doc))
+                await registrar(me, 'situacao_doc_manual', `Situação documental definida manualmente como ${v.situacao_doc} no veículo ${rotulo({ ...v, id: novo })}`);
+            else if (!v.situacao_doc_manual && antes && antes.situacao_doc_manual)
+                await registrar(me, 'situacao_doc_automatica', `Situação documental voltou a ser automática (${antes.situacao_doc_calculada}) no veículo ${rotulo({ ...v, id: novo })}`);
             return res.json({ id: novo });
         }
 
@@ -260,11 +281,13 @@ module.exports = async (req, res) => {
             if (novos.length) {
                 const col = f => novos.map(f);
                 // Nº de ordem automático: continua a sequência, na ordem das linhas da planilha
-                await sql`insert into veiculos(ordem, orgao, processo, placa, tombo, tipo, modelo, ano, chassi, renavam, ultimo_licenciamento, destinacao, situacao_doc, entrada, saida, obs, criado_por)
-                    select (select coalesce(max(ordem), 0) from veiculos) + x.n, x.orgao, x.processo, x.placa, x.tombo, x.tipo, x.modelo, x.ano, x.chassi, x.renavam, x.ultimo_licenciamento, x.destinacao, x.situacao_doc, x.entrada, x.saida, x.obs, ${me.id}::int
+                await sql`insert into veiculos(ordem, orgao, processo, placa, tombo, tipo, modelo, ano, chassi, renavam, ultimo_licenciamento, destinacao, situacao_doc, situacao_doc_manual, entrada, saida, obs, criado_por)
+                    select (select coalesce(max(ordem), 0) from veiculos) + x.n, x.orgao, x.processo, x.placa, x.tombo, x.tipo, x.modelo, x.ano, x.chassi, x.renavam, x.ultimo_licenciamento, x.destinacao, x.situacao_doc, x.situacao_doc <> '', x.entrada, x.saida, x.obs, ${me.id}::int
                         from unnest(${col(v => v.orgao)}::text[], ${col(v => v.processo)}::text[], ${col(v => v.placa)}::text[], ${col(v => v.tombo)}::text[], ${col(v => v.tipo)}::text[],
               ${col(v => v.modelo)}::text[], ${col(v => v.ano)}::text[], ${col(v => v.chassi)}::text[], ${col(v => v.renavam)}::text[], ${col(v => v.ultimo_licenciamento)}::int[],
               ${col(v => v.destinacao)}::text[], ${col(v => v.situacao_doc)}::text[], ${col(v => v.entrada || null)}::date[], ${col(v => v.saida || null)}::date[], ${col(v => v.obs)}::text[]) with ordinality as x(orgao, processo, placa, tombo, tipo, modelo, ano, chassi, renavam, ultimo_licenciamento, destinacao, situacao_doc, entrada, saida, obs, n)`;
+                // Sem situação na planilha = automática (entram sem documentos, então "Não regularizado")
+                await recalcularSituacao(sql, null);
             }
             await registrar(
                 me,
@@ -399,7 +422,7 @@ module.exports = async (req, res) => {
                 throw new Erro(`Remova os arquivos anexados ao ${DOCUMENTOS[d]} antes de desmarcar o documento`);
             await sql`update veiculos set documentos = case when ${tem} then documentos || jsonb_build_object(${d}::text, true) else documentos - ${d}::text end, atualizado_em = now()
                 where id = ${v.id}`;
-            await registrar(me, tem ? 'documento_veiculo_marcado' : 'documento_veiculo_desmarcado', `${DOCUMENTOS[d]} no veículo ${rotulo(v)}`);
+            await registrar(me, tem ? 'documento_veiculo_marcado' : 'documento_veiculo_desmarcado', `${DOCUMENTOS[d]} no veículo ${rotulo(v)}${await mudouSituacao(sql, v)}`);
             return res.json({ ok: 1 });
         }
 
@@ -464,9 +487,10 @@ module.exports = async (req, res) => {
             }
             await sql`update veiculo_documentos set confirmado = true, tamanho = ${r.tamanho} where id = ${a.id}`;
             // Documento anexado = documento que o veículo possui
+            const v = (await sql`select id, situacao_doc from veiculos where id = ${a.veiculo_id}`)[0];
             await sql`update veiculos set documentos = documentos || jsonb_build_object(${a.documento}::text, true), atualizado_em = now()
                 where id = ${a.veiculo_id}`;
-            await registrar(me, 'documento_veiculo_enviado', `${DOCUMENTOS[a.documento] || a.documento} (${a.nome}) no veículo #${a.veiculo_id}`);
+            await registrar(me, 'documento_veiculo_enviado', `${DOCUMENTOS[a.documento] || a.documento} (${a.nome}) no veículo #${a.veiculo_id}${await mudouSituacao(sql, v)}`);
             return res.json({ ok: 1 });
         }
 
